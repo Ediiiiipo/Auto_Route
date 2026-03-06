@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "SPX Auto Router",
+  "version": "2.0.0",
+  "description": "Template → Importação + Cálculos + GeoFixer automático — Routing Tower",
+  "author": "Éd1p0",
+  "permissions": ["activeTab", "scripting", "tabs"],
+  "host_permissions": ["https://spx.shopee.com.br/*"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://spx.shopee.com.br/*"],
+      "js": ["content-script.js"],
+      "css": ["geofixer.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["libs/*", "geocoder-bridge.js"],
+      "matches": ["https://spx.shopee.com.br/*"]
+    }
+  ]
+}

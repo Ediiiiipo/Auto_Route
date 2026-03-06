@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    :root {
+      --bg: #0f1419; --bg2: #1a1f25; --bg3: #242a32;
+      --border: #2d333b; --accent: #e5622a; --accent-bg: rgba(229,98,42,0.15);
+      --success: #22c55e; --success-bg: rgba(34,197,94,0.15);
+      --error: #ef4444; --error-bg: rgba(239,68,68,0.15);
+      --warn: #f59e0b; --warn-bg: rgba(245,158,11,0.15);
+      --blue: #3b82f6; --blue-bg: rgba(59,130,246,0.15);
+      --teal: #0891b2;
+      --text: #e6edf3; --text2: #c9d1d9; --text3: #8b949e;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { width: 520px; max-height: 600px; overflow-y: auto; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; }
+
+    .header { padding: 14px 20px 10px; background: linear-gradient(135deg, var(--bg) 0%, var(--bg2) 100%); border-bottom: 1px solid var(--border); }
+    .header-top { display: flex; align-items: center; justify-content: space-between; }
+    .logo { display: flex; align-items: center; gap: 10px; }
+    .logo-icon { font-size: 22px; }
+    .logo h1 { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+    .version { font-family: monospace; font-size: 11px; color: var(--accent); background: var(--accent-bg); padding: 2px 8px; border-radius: 10px; }
+    .header-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+
+    .status-bar { display: flex; align-items: center; gap: 8px; padding: 8px 20px; border-bottom: 1px solid var(--border); background: var(--bg2); }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--error); flex-shrink: 0; }
+    .status-dot.ok { background: var(--success); }
+    .status-text { font-size: 11px; color: var(--text3); }
+
+    /* PHASE 1 — Select Template */
+    .phase { display: none; padding: 16px 20px; }
+    .phase.active { display: block; }
+    .phase-title { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.8px; display: flex; align-items: center; gap: 8px; }
+
+    .btn-main { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; color: #fff; cursor: pointer; transition: all 0.2s; }
+    .btn-main:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-main:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-accent { background: var(--accent); box-shadow: 0 4px 20px var(--accent-bg); }
+    .btn-success { background: var(--success); box-shadow: 0 4px 20px var(--success-bg); }
+    .btn-blue { background: var(--blue); box-shadow: 0 4px 20px var(--blue-bg); }
+
+    .file-info { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-top: 10px; font-size: 12px; color: var(--text3); display: none; }
+    .file-info .name { color: var(--text); font-weight: 600; }
+
+    /* PHASE 2 — Preview */
+    .config-row { display: flex; gap: 10px; margin-bottom: 10px; }
+    .config-field { flex: 1; }
+    .config-field label { display: block; font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .config-field select, .config-field input { width: 100%; padding: 6px 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; }
+    .shift-group { display: flex; gap: 4px; }
+    .shift-btn { flex: 1; padding: 6px 0; text-align: center; font-size: 11px; font-weight: 600; border-radius: 6px; cursor: pointer; background: var(--bg3); color: var(--text3); border: 1px solid var(--border); transition: all 0.2s; }
+    .shift-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    .ct-summary { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+    .ct-badge { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .ct-badge.moto { background: var(--accent-bg); color: var(--accent); }
+    .ct-badge.passeio { background: var(--blue-bg); color: var(--blue); }
+    .ct-badge.vol { background: var(--warn-bg); color: var(--warn); }
+    .ct-badge.total { background: var(--bg3); color: var(--text2); }
+
+    .ct-table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 11px; }
+    .ct-table th { text-align: left; padding: 6px 8px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; border-bottom: 1px solid var(--border); }
+    .ct-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .ct-table tr.disabled { opacity: 0.45; }
+    .ct-table tr:hover { background: var(--bg3); }
+    .ct-table input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); }
+    .ct-table input[type="number"] { width: 50px; padding: 2px 4px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 11px; text-align: center; }
+    .ct-table .type-moto { color: var(--accent); font-weight: 600; }
+    .ct-table .type-passeio { color: var(--blue); font-weight: 600; }
+    .ct-table .type-vol { color: var(--warn); font-weight: 600; }
+    .ct-table .baixo-ado { color: var(--error); font-style: italic; font-size: 10px; }
+    .table-wrap { max-height: 280px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg2); }
+
+    /* PHASE 3 — Execution */
+    .progress-container { margin: 12px 0; }
+    .progress-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; width: 0%; }
+    .progress-text { font-size: 11px; color: var(--text3); margin-top: 6px; text-align: center; }
+    .step-list { margin: 12px 0; }
+    .step { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12px; }
+    .step-icon { width: 20px; text-align: center; }
+    .step.done .step-icon { color: var(--success); }
+    .step.active .step-icon { color: var(--accent); }
+    .step.pending { color: var(--text3); }
+
+    /* PHASE 4 — Result */
+    .result-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin: 10px 0; text-align: center; }
+    .result-big { font-size: 28px; font-weight: 700; }
+    .result-label { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+    /* Logs */
+    .log-area { padding: 0 20px 12px; }
+    .log-toggle { display: flex; align-items: center; justify-content: space-between; cursor: pointer; padding: 6px 0; user-select: none; }
+    .log-toggle h3 { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; }
+    .log-toggle svg { width: 14px; height: 14px; color: var(--text3); transition: transform 0.2s; }
+    .log-toggle.open svg { transform: rotate(180deg); }
+    .log-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
+    .log-body.open { max-height: 200px; overflow-y: auto; }
+    .log-entry { font-family: 'Consolas', 'Monaco', monospace; font-size: 10px; padding: 2px 0; color: var(--text3); border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .log-entry.info { color: var(--text2); }
+    .log-entry.success { color: var(--success); }
+    .log-entry.warn { color: var(--warn); }
+    .log-entry.error { color: var(--error); }
+    .log-time { color: var(--text3); margin-right: 6px; }
+
+    .spinner-sm { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .footer { padding: 8px 20px; text-align: center; font-family: monospace; font-size: 10px; color: var(--text3); }
+    .footer a { color: var(--accent); text-decoration: none; }
+
+    /* GeoFixer Toggle */
+    .gfx-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin-top: 10px; cursor: pointer; user-select: none; }
+    .gfx-toggle-row:hover { border-color: var(--accent); }
+    .gfx-toggle-info { display: flex; align-items: center; gap: 10px; }
+    .gfx-toggle-icon { font-size: 20px; }
+    .gfx-toggle-label { font-size: 12px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; }
+    .gfx-toggle-badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; background: var(--success-bg); color: var(--success); }
+    .gfx-toggle-badge.off { background: var(--bg3); color: var(--text3); }
+    .gfx-toggle-desc { font-size: 10px; color: var(--text3); margin-top: 2px; }
+    .toggles-section { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+    .gfx-switch { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
+    .gfx-switch input { opacity: 0; width: 0; height: 0; }
+    .gfx-slider { position: absolute; inset: 0; background: var(--bg3); border-radius: 22px; cursor: pointer; transition: background 0.2s; border: 1px solid var(--border); }
+    .gfx-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px; background: var(--text3); border-radius: 50%; transition: transform 0.2s, background 0.2s; }
+    .gfx-switch input:checked + .gfx-slider { background: var(--success); border-color: var(--success); }
+    .gfx-switch input:checked + .gfx-slider::before { transform: translateX(16px); background: white; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-top">
+      <div class="logo">
+        <div class="logo-icon">🚀</div>
+        <div><h1>SPX Auto Router</h1></div>
+      </div>
+      <span class="version">v1.0.0</span>
+    </div>
+    <div class="header-sub">Template → Importação + Cálculos — Routing Tower</div>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-text" id="statusText">Verificando conexão...</span>
+  </div>
+
+  <!-- PHASE 1: Select Template -->
+  <div class="phase active" id="phase1">
+    <div class="phase-title">📁 Selecionar Template</div>
+    <input type="file" id="fileInput" accept=".xlsm,.xlsx,.xls" style="display:none">
+    <button class="btn-main btn-accent" id="btnSelect">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      Selecionar Template (.xlsm / .xlsx)
+    </button>
+    <div class="file-info" id="fileInfo">
+      <div class="name" id="fileName"></div>
+      <div id="fileDetails"></div>
+    </div>
+
+    <div class="toggles-section">
+      <div class="gfx-toggle-row" id="gfxToggleRow">
+        <div class="gfx-toggle-info">
+          <span class="gfx-toggle-icon">📍</span>
+          <div>
+            <div class="gfx-toggle-label">Correção de Pins <span class="gfx-toggle-badge" id="gfxBadge">ATIVO</span></div>
+            <div class="gfx-toggle-desc">GeoFixer corrige outliers em cada CT</div>
+          </div>
+        </div>
+        <label class="gfx-switch">
+          <input type="checkbox" id="gfxEnabled" checked>
+          <span class="gfx-slider"></span>
+        </label>
+      </div>
+
+      <div class="gfx-toggle-row" id="comerciaisToggleRow">
+        <div class="gfx-toggle-info">
+          <span class="gfx-toggle-icon">🏢</span>
+          <div>
+            <div class="gfx-toggle-label">Remover Comerciais <span class="gfx-toggle-badge off" id="comerciaisBadge">DESATIVADO</span></div>
+            <div class="gfx-toggle-desc">Remove Office, Return to Seller e Service Point</div>
+          </div>
+        </div>
+        <label class="gfx-switch">
+          <input type="checkbox" id="comerciaisEnabled">
+          <span class="gfx-slider"></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- PHASE 2: Preview & Config -->
+  <div class="phase" id="phase2">
+    <div class="phase-title">⚙️ Revisar e Configurar</div>
+    <div class="config-row">
+      <div class="config-field">
+        <label>Data</label>
+        <select id="calcDate"><option value="tomorrow" selected>🗓️ AMANHÃ</option><option value="today">📅 HOJE</option></select>
+      </div>
+      <div class="config-field">
+        <label>Turno</label>
+        <div class="shift-group">
+          <div class="shift-btn active" id="shiftAM">AM</div>
+          <div class="shift-btn" id="shiftPM1">PM-1</div>
+          <div class="shift-btn" id="shiftPM2">PM-2</div>
+        </div>
+      </div>
+    </div>
+    <div class="config-row">
+      <div class="config-field"><label>🏍️ SPR Moto</label><input type="number" id="sprMoto" value="95" min="1"></div>
+      <div class="config-field"><label>🚐 SPR Volumoso</label><input type="number" id="sprVol" value="25" min="1"></div>
+    </div>
+
+    <div class="ct-summary" id="ctSummary"></div>
+
+    <div class="table-wrap">
+      <table class="ct-table">
+        <thead><tr><th></th><th>Tipo</th><th>Cluster</th><th>IDs</th><th>SPR</th><th>Rotas</th></tr></thead>
+        <tbody id="ctTableBody"></tbody>
+      </table>
+    </div>
+
+    <div style="display:flex; gap:8px; margin-top:12px;">
+      <button class="btn-main btn-blue" id="btnBack" style="flex:0.4;">← Voltar</button>
+      <button class="btn-main btn-success" id="btnExecute" style="flex:0.6;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Executar
+      </button>
+    </div>
+  </div>
+
+  <!-- PHASE 3: Execution -->
+  <div class="phase" id="phase3">
+    <div class="phase-title">⚡ Executando</div>
+    <div class="step-list" id="stepList">
+      <div class="step active" id="stepImport"><span class="step-icon">⏳</span> Criando CTs e enviando IDs...</div>
+      <div class="step pending" id="stepCalc"><span class="step-icon">⏸️</span> Calculando roteirizações...</div>
+    </div>
+    <div class="progress-container">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-text" id="progressText">Preparando...</div>
+    </div>
+  </div>
+
+  <!-- PHASE 4: Result -->
+  <div class="phase" id="phase4">
+    <div class="phase-title">✅ Concluído</div>
+    <div style="display:flex; gap:10px;">
+      <div class="result-card" style="flex:1;"><div class="result-big" id="resCTs" style="color:var(--accent);">0</div><div class="result-label">CTs Criadas</div></div>
+      <div class="result-card" style="flex:1;"><div class="result-big" id="resIDs" style="color:var(--blue);">0</div><div class="result-label">IDs Enviados</div></div>
+      <div class="result-card" style="flex:1;"><div class="result-big" id="resCalc" style="color:var(--success);">0</div><div class="result-label">Calculados</div></div>
+    </div>
+    <div id="comerciaisResult" style="display:none; margin-top:10px;">
+      <div style="background:rgba(234,179,8,0.1); border:1px solid rgba(234,179,8,0.3); border-radius:8px; padding:10px 12px; margin-bottom:8px;">
+        <div style="color:#eab308; font-size:12px; font-weight:600; margin-bottom:4px;">🏢 Pedidos Comerciais Removidos</div>
+        <div id="comerciaisCount" style="color:#94a3b8; font-size:11px;"></div>
+      </div>
+      <button class="btn-main btn-blue" id="btnExportComerciais" style="font-size:12px; padding:8px 12px;">
+        📋 Exportar Lista de Comerciais (.txt)
+      </button>
+    </div>
+    <button class="btn-main btn-accent" id="btnRestart" style="margin-top:12px;">🔄 Novo Template</button>
+  </div>
+
+  <div class="log-area">
+    <div class="log-toggle" id="logToggle">
+      <h3>Logs</h3>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+    <div class="log-body" id="logBody"></div>
+  </div>
+
+  <div class="footer">🚀 SPX Auto Router — by <a href="#">Éd1p0</a> — Routing Tower</div>
+
+  <script src="libs/xlsx.min.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
