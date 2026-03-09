@@ -4,6 +4,7 @@
 const $ = id => document.getElementById(id);
 let isRunning = false;
 let templateData = null; // Parsed template data
+let templateBuffer = null; // Raw ArrayBuffer do arquivo carregado
 let ctList = []; // Final CT list for execution
 
 // ---- Logging ----
@@ -446,6 +447,7 @@ async function executeImport(enabledCTs) {
       continue;
     }
     const ctId = createResult.ctId;
+    ct.ctId = ctId;
     results.created++;
     log(`✅ CT criada: ${label} (${ctId})`, 'success');
 
@@ -470,91 +472,212 @@ async function executeImport(enabledCTs) {
   }
 
   log(`Importação: ${results.created} CTs criadas, ${results.sent} IDs enviados, ${results.errors} erros`, results.errors ? 'warn' : 'success');
-  return results;
+  return { ...results, stationId };
 }
 
 // ============================================================
-// CALC: Trigger calculation automation
+// CALC VIA API — Funções auxiliares
 // ============================================================
-async function executeCalc(enabledCTs, config) {
-  log('Iniciando cálculos automáticos...', 'info');
+function getDateFormatted(daysOffset = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + daysOffset);
+  return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+}
 
-  // Build vehicles list for content-script
-  // Table order (top→bottom after creation): Moto(ord asc) → Vol(ord asc) → Passeio(ord asc)
-  // Content-script always clicks FIRST ROW (top), which after calc disappears.
-  // So vehicles array = table order top→bottom = calc execution order
+function getDateTimestamp(daysOffset = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + daysOffset);
+  // Meia-noite no horário de Brasília (UTC-3) = 03:00 UTC
+  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 3, 0, 0) / 1000);
+}
+
+function buildVehiclePayload(vehicleConfig, spr, speedTier) {
+  const cfg = JSON.parse(vehicleConfig.config_selections);
+  const speed = cfg.speedConfig[speedTier];
+  const stopServiceTime = cfg.basicServiceTime[speedTier] * 60;
+  const extraServiceTime = cfg.extraServiceTime[speedTier] * 60;
+  return {
+    config_selections: vehicleConfig.config_selections,
+    id: vehicleConfig.id,
+    vehicle_name: vehicleConfig.vehicle_name,
+    vehicle_id: vehicleConfig.vehicle_id,
+    wheel_type: vehicleConfig.wheel_type,
+    available_num: vehicleConfig.available_num,
+    available_driver_num: vehicleConfig.available_driver_num,
+    speed,
+    stop_service_time: stopServiceTime,
+    extra_service_time: extraServiceTime,
+    min_parcels: vehicleConfig.min_parcels,
+    max_parcels: vehicleConfig.max_parcels,
+    max_distance: vehicleConfig.max_distance,
+    max_weight: vehicleConfig.max_weight,
+    cur_max_parcels: spr,
+    cur_max_distance: vehicleConfig.max_distance,
+    cur_max_weight: vehicleConfig.max_weight,
+    require_plate_info: vehicleConfig.require_plate_info,
+    min_capacity_ratio: vehicleConfig.min_capacity_ratio,
+    max_capacity_ratio: vehicleConfig.max_capacity_ratio,
+    min_weight_ratio: vehicleConfig.min_weight_ratio,
+    max_weight_ratio: vehicleConfig.max_weight_ratio,
+    max_distance_ratio: vehicleConfig.max_distance_ratio
+  };
+}
+
+// Funções executadas no contexto da página (runInTab)
+function getCommonConfig(ctId) {
+  return new Promise(async (resolve) => {
+    try {
+      const res = await fetch(`/api/spx/lmroute/adminapi/calculation_task/common_config?calculation_task_id=${ctId}`, {
+        headers: { 'accept': 'application/json, text/plain, */*', 'app': 'FMS Portal' },
+        credentials: 'include'
+      });
+      const data = await res.json();
+      if (data.retcode !== 0) { resolve({ success: false, error: data.message || `retcode: ${data.retcode}` }); return; }
+      resolve({ success: true, vehicles: data.data.vehicles });
+    } catch (e) { resolve({ success: false, error: e.message }); }
+  });
+}
+
+function getEventList(stId, dateTs) {
+  return new Promise(async (resolve) => {
+    try {
+      const getCookie = (n) => { const m = document.cookie.match(new RegExp('(?:^|;\\s*)' + n + '=([^;]*)')); return m ? m[1] : ''; };
+      const res = await fetch('/spx_delivery/admin/roster_planning_event/event/brief_event_list', {
+        method: 'POST',
+        headers: { 'accept': 'application/json, text/plain, */*', 'content-type': 'application/json;charset=UTF-8', 'app': 'FMS Portal', 'x-csrftoken': getCookie('csrftoken'), 'device-id': getCookie('spx-admin-device-id') },
+        credentials: 'include',
+        body: JSON.stringify({ station_id: stId, event_type: 1, event_date_from: dateTs, event_date_to: dateTs })
+      });
+      const data = await res.json();
+      if (data.retcode !== 0) { resolve({ success: false, error: data.message || `retcode: ${data.retcode}` }); return; }
+      const events = data.data?.event_day_list?.[0]?.event_list || [];
+      resolve({ success: true, events });
+    } catch (e) { resolve({ success: false, error: e.message }); }
+  });
+}
+
+function triggerCalculation(ctId, rosterEventId, vehiclePayload, maxDeliveryTime) {
+  return new Promise(async (resolve) => {
+    try {
+      const getCookie = (n) => { const m = document.cookie.match(new RegExp('(?:^|;\\s*)' + n + '=([^;]*)')); return m ? m[1] : ''; };
+      const res = await fetch('/api/spx/lmroute/adminapi/calculation_task/calculate', {
+        method: 'POST',
+        headers: { 'accept': 'application/json, text/plain, */*', 'content-type': 'application/json;charset=UTF-8', 'app': 'FMS Portal', 'x-csrftoken': getCookie('csrftoken'), 'device-id': getCookie('spx-admin-device-id') },
+        credentials: 'include',
+        body: JSON.stringify({
+          calculation_task_id: ctId,
+          objectives: ['p_shape'],
+          vehicles: [vehiclePayload],
+          trans_mode: 'oneway',
+          max_delivery_time: maxDeliveryTime,
+          roster_plan_event_id: rosterEventId
+        })
+      });
+      const data = await res.json();
+      if (data.retcode !== 0) { resolve({ success: false, error: data.message || `retcode: ${data.retcode}` }); return; }
+      resolve({ success: true });
+    } catch (e) { resolve({ success: false, error: e.message }); }
+  });
+}
+
+// ============================================================
+// CALC VIA API — Fluxo principal
+// ============================================================
+async function executeCalcAPI(enabledCTs, config, stationId) {
+  log('Iniciando cálculos via API...', 'info');
+
+  const MAX_DELIVERY_TIME = 43140; // 11h59min em segundos
+  const dateOffset = config.date === 'today' ? 0 : 1;
+  const dateFormatted = getDateFormatted(dateOffset);
+  const dateTs = getDateTimestamp(dateOffset);
+
+  // Ordem: MOTO → FIORINO → PASSEIO
   const motos = enabledCTs.filter(ct => ct.type === 'MOTO').sort((a, b) => a.ord - b.ord);
   const vols = enabledCTs.filter(ct => ct.type === 'FIORINO').sort((a, b) => a.ord - b.ord);
   const passeios = enabledCTs.filter(ct => ct.type === 'PASSEIO').sort((a, b) => a.ord - b.ord);
+  const calcOrder = [...motos, ...vols, ...passeios];
 
-  const vehiclesForCalc = [...motos, ...vols, ...passeios].map(ct => ({
-    type: ct.type === 'MOTO' ? 'MOTO' : ct.type === 'FIORINO' ? 'FIORINO/VAN' : 'PASSEIO',
-    name: ct.cluster,
-    spr: ct.spr
-  }));
+  log(`Ordem de cálculo: ${calcOrder.map(c => `${c.typeLabel} ${c.cluster}`).join(' → ')}`, 'info');
 
-  log(`Ordem de cálculo: ${vehiclesForCalc.map(v => `${v.type} ${v.name}`).join(' → ')}`, 'info');
-
-  // Determine date string — format DD-MM-YYYY (hyphens, not slashes!)
-  function getDateFormatted(daysOffset = 0) {
-    const d = new Date();
-    d.setDate(d.getDate() + daysOffset);
-    return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+  // Buscar evento/turno uma única vez
+  log(`Buscando turno ${config.shift} para ${dateFormatted}...`, 'info');
+  const eventResult = await runInTab(getEventList, [stationId, dateTs]);
+  if (!eventResult?.success) {
+    log(`❌ Falha ao buscar eventos: ${eventResult?.error || 'desconhecido'}`, 'error');
+    return { successCount: 0, failCount: calcOrder.length };
   }
-  const dateStr = config.date === 'today' ? getDateFormatted(0) : getDateFormatted(1);
 
-  const calcConfig = { date: dateStr, shift: config.shift, geoFixer: config.geoFixer };
+  const event = eventResult.events.find(e => e.shift_info?.shift_name === config.shift);
+  if (!event) {
+    log(`❌ Turno "${config.shift}" não encontrado para ${dateFormatted}. Verifique se o turno existe nessa data.`, 'error');
+    return { successCount: 0, failCount: calcOrder.length };
+  }
 
-  // Reload page to see new CTs
+  const rosterEventId = event.event_id;
+  log(`Turno ${config.shift} → evento ${rosterEventId}`, 'success');
+
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  let successCount = 0, failCount = 0;
 
-  log('Recarregando página SPX...', 'info');
-  await chrome.tabs.reload(tab.id);
-  await new Promise(resolve => {
-    chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
-      if (tabId === tab.id && info.status === 'complete') {
-        chrome.tabs.onUpdated.removeListener(listener);
-        resolve();
-      }
-    });
-  });
-  await new Promise(r => setTimeout(r, 2500));
-  log('Página recarregada', 'success');
+  for (let i = 0; i < calcOrder.length; i++) {
+    const ct = calcOrder[i];
+    const label = `${ct.typeLabel} ${ct.cluster}`;
+    updateProgress(i, calcOrder.length, `Calculando: ${label}`);
+    log(`[${i+1}/${calcOrder.length}] ${label} (CT: ${ct.ctId})`, 'info');
 
-  // Send to content-script
-  chrome.tabs.sendMessage(tab.id, {
-    action: 'startAutomation',
-    config: calcConfig,
-    vehicles: vehiclesForCalc
-  }, (response) => {
-    if (chrome.runtime.lastError) {
-      log(`Erro content script: ${chrome.runtime.lastError.message}`, 'error');
+    if (!ct.ctId) {
+      log(`⚠️ ${label}: sem CT ID, pulando`, 'warn');
+      failCount++;
+      continue;
     }
-  });
 
-  // Listen for progress from content-script
-  return new Promise((resolve) => {
-    const messageListener = (message) => {
-      if (message.action === 'progress') {
-        updateProgress(message.current, message.total, message.message);
-        log(message.message, 'info');
-      } else if (message.action === 'geofix_start') {
-        log(`📍 GeoFixer: ${message.count} outlier(s) detectado(s) — corrigindo...`, 'warn');
-      } else if (message.action === 'geofix_done') {
-        if (message.fixed > 0) log(`✅ GeoFixer: ${message.fixed} ponto(s) corrigido(s)`, 'success');
-        if (message.errors > 0) log(`⚠️ GeoFixer: ${message.errors} erro(s) na correção`, 'warn');
-      } else if (message.action === 'complete') {
-        log('✅ Todos os cálculos concluídos!', 'success');
-        chrome.runtime.onMessage.removeListener(messageListener);
-        resolve();
-      } else if (message.action === 'error') {
-        log(`❌ Erro: ${message.error}`, 'error');
-        chrome.runtime.onMessage.removeListener(messageListener);
-        resolve();
-      }
-    };
-    chrome.runtime.onMessage.addListener(messageListener);
-  });
+    // GeoFixer antes do cálculo (se habilitado)
+    if (config.geoFixer) {
+      updateProgress(i, calcOrder.length, `📍 GeoFixer: ${label}`);
+      await new Promise((resolve) => {
+        chrome.tabs.sendMessage(tab.id, { action: 'runGeoFixerForCT', taskId: ct.ctId }, () => resolve());
+      });
+    }
+
+    // Buscar configs do veículo na CT
+    const configResult = await runInTab(getCommonConfig, [ct.ctId]);
+    if (!configResult?.success) {
+      log(`❌ ${label}: falha ao buscar config — ${configResult?.error}`, 'error');
+      failCount++;
+      continue;
+    }
+
+    // Encontrar veículo correspondente
+    const vehicleMatch = configResult.vehicles.find(cv => {
+      const n = cv.vehicle_name.toUpperCase();
+      if (ct.type === 'MOTO') return n === 'MOTO';
+      if (ct.type === 'PASSEIO') return n === 'PASSEIO';
+      if (ct.type === 'FIORINO') return n === 'FIORINO' || n === 'VAN' || n === 'VOLUMOSO';
+      return false;
+    });
+
+    if (!vehicleMatch) {
+      log(`❌ ${label}: tipo "${ct.type}" não encontrado na CT`, 'error');
+      failCount++;
+      continue;
+    }
+
+    // Montar payload e disparar cálculo
+    const vehiclePayload = buildVehiclePayload(vehicleMatch, ct.spr, 'fast');
+    const calcResult = await runInTab(triggerCalculation, [ct.ctId, rosterEventId, vehiclePayload, MAX_DELIVERY_TIME]);
+
+    if (calcResult?.success) {
+      successCount++;
+      log(`✅ ${label} → calculado!`, 'success');
+    } else {
+      failCount++;
+      log(`❌ ${label}: ${calcResult?.error}`, 'error');
+    }
+  }
+
+  updateProgress(calcOrder.length, calcOrder.length, 'Cálculos concluídos');
+  log(`Cálculos: ${successCount} sucesso, ${failCount} erros`, successCount > 0 ? 'success' : 'error');
+  return { successCount, failCount };
 }
 
 // ============================================================
@@ -576,7 +699,8 @@ $('comerciaisEnabled').addEventListener('change', () => {
   const badge = $('comerciaisBadge');
   badge.textContent = on ? 'ATIVO' : 'DESATIVADO';
   badge.className = on ? 'gfx-toggle-badge' : 'gfx-toggle-badge off';
-  console.log('🏢 Remover Comerciais:', on ? 'ATIVO' : 'DESATIVADO');
+  // Re-parseia o template com o novo estado do filtro (se já foi carregado)
+  if (templateBuffer) applyTemplate(templateBuffer, on);
 });
 
 // GeoFixer toggle
@@ -599,6 +723,27 @@ $('logToggle').addEventListener('click', () => {
   $('logBody').classList.toggle('open');
 });
 
+// Aplica o parse + build CT list + render preview
+function applyTemplate(arrayBuffer, filterComerciais) {
+  try {
+    templateData = parseTemplate(arrayBuffer, filterComerciais);
+    if (filterComerciais && templateData.comerciaisRemovidos.length > 0) {
+      log(`🏢 Comerciais removidos: ${templateData.comerciaisRemovidos.length} pedidos (Office/RTS/SP)`, 'warn');
+    }
+
+    let totalIDs = 0;
+    Object.values(templateData.shipments).forEach(s => {
+      totalIDs += s.MOTO.length + s.Passeio.length + s.Volumoso.length + s.MOTO_BACKLOG.length;
+    });
+    $('fileDetails').textContent = `${templateData.clusters.length} clusters | ${totalIDs.toLocaleString()} IDs válidos | SPR Moto: ${templateData.sprMotoGlobal} | SPR Vol: ${templateData.sprVolGlobal}`;
+
+    ctList = buildCTList(templateData);
+    renderPreview();
+  } catch(err) {
+    log(`❌ Erro ao processar template: ${err.message}`, 'error');
+  }
+}
+
 // File selection
 $('btnSelect').addEventListener('click', () => $('fileInput').click());
 $('fileInput').addEventListener('change', async (e) => {
@@ -610,36 +755,17 @@ $('fileInput').addEventListener('change', async (e) => {
   log(`Arquivo: ${file.name} (${(file.size/1024).toFixed(0)} KB)`, 'info');
 
   try {
-    const arrayBuffer = await file.arrayBuffer();
-
+    templateBuffer = await file.arrayBuffer();
     const filterComerciais = $('comerciaisEnabled').checked;
-    templateData = parseTemplate(arrayBuffer, filterComerciais);
+
+    applyTemplate(templateBuffer, filterComerciais);
     log(`✅ Template lido: ${templateData.clusters.length} clusters`, 'success');
     log(`📊 Filtrados: ${templateData.totalFiltered} IDs excluídos`, 'info');
-    if (filterComerciais && templateData.comerciaisRemovidos.length > 0) {
-      log(`🏢 Comerciais removidos: ${templateData.comerciaisRemovidos.length} pedidos (Office/RTS/SP)`, 'warn');
-    }
 
-    // Show file info
     $('fileInfo').style.display = 'block';
     $('fileName').textContent = file.name;
-
-    let totalIDs = 0;
-    Object.values(templateData.shipments).forEach(s => {
-      totalIDs += s.MOTO.length + s.Passeio.length + s.Volumoso.length + s.MOTO_BACKLOG.length;
-    });
-    $('fileDetails').textContent = `${templateData.clusters.length} clusters | ${totalIDs.toLocaleString()} IDs válidos | SPR Moto: ${templateData.sprMotoGlobal} | SPR Vol: ${templateData.sprVolGlobal}`;
-
-    // Build CT list
-    ctList = buildCTList(templateData);
     log(`📋 ${ctList.length} CTs geradas (${ctList.filter(c=>c.enabled).length} ativas)`, 'info');
 
-    // Fill config from template
-    $('sprMoto').value = templateData.sprMotoGlobal;
-    $('sprVol').value = templateData.sprVolGlobal;
-
-    // Render preview
-    renderPreview();
     showPhase(2);
 
   } catch(err) {
@@ -663,23 +789,8 @@ $('btnExecute').addEventListener('click', async () => {
   const connected = await checkConnection();
   if (!connected) { alert('Abra o SPX (spx.shopee.com.br) primeiro!'); return; }
 
-  // Check if on the correct page
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab.url.includes('lmRouteCalculationPool')) {
-    alert('Navegue para a página de Agrupamento de Cálculos primeiro:\n\nhttps://spx.shopee.com.br/#/lmRouteCalculationPool');
-    return;
-  }
-
   const enabledCTs = ctList.filter(ct => ct.enabled);
   if (enabledCTs.length === 0) { alert('Nenhuma CT selecionada!'); return; }
-
-  // Update SPR Moto/Vol from inputs
-  const newSprMoto = parseInt($('sprMoto').value) || 95;
-  const newSprVol = parseInt($('sprVol').value) || 25;
-  enabledCTs.forEach(ct => {
-    if (ct.type === 'MOTO') ct.spr = newSprMoto;
-    if (ct.type === 'FIORINO') ct.spr = newSprVol;
-  });
 
   const totalIDs = enabledCTs.reduce((s, ct) => s + ct.ids.length, 0);
   if (!confirm(`Executar ${enabledCTs.length} CTs com ${totalIDs.toLocaleString()} IDs?\n\nOrdem: Moto → Passeio → Volumoso`)) return;
@@ -713,7 +824,7 @@ $('btnExecute').addEventListener('click', async () => {
   $('stepCalc').className = 'step active';
   $('stepCalc').querySelector('.step-icon').textContent = '⏳';
   $('stepCalc').innerHTML = `<span class="step-icon">⏳</span><span>${geoLabel}</span>`;
-  await executeCalc(enabledCTs, config);
+  const calcResult = await executeCalcAPI(enabledCTs, config, importResult.stationId);
 
   $('stepCalc').className = 'step done';
   $('stepCalc').innerHTML = `<span class="step-icon">✅</span><span> Cálculos concluídos</span>`;
@@ -721,7 +832,7 @@ $('btnExecute').addEventListener('click', async () => {
   // Show results
   $('resCTs').textContent = importResult.created;
   $('resIDs').textContent = importResult.sent.toLocaleString();
-  $('resCalc').textContent = importResult.created;
+  $('resCalc').textContent = calcResult?.successCount ?? importResult.created;
 
   // Mostrar painel de comerciais se houver removidos
   const removidos = templateData?.comerciaisRemovidos || [];
@@ -770,6 +881,7 @@ $('btnExportComerciais').addEventListener('click', () => {
 // Restart
 $('btnRestart').addEventListener('click', () => {
   templateData = null;
+  templateBuffer = null;
   ctList = [];
   $('fileInput').value = '';
   $('fileInfo').style.display = 'none';

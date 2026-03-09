@@ -406,6 +406,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === 'startAutomation') {
     executarAutomacao(msg.config, msg.vehicles);
     sendResponse({ ok: true });
+  } else if (msg.action === 'runGeoFixerForCT') {
+    GFX.runForCT(msg.taskId)
+      .then(() => sendResponse({ ok: true }))
+      .catch(e => sendResponse({ ok: false, error: e.message }));
+    return true; // mantém canal aberto para resposta assíncrona
   }
   return true;
 });

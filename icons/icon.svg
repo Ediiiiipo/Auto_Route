@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Background -->
+  <rect width="128" height="128" rx="22" fill="#16161a"/>
+
+  <!-- Document body -->
+  <rect x="20" y="14" width="88" height="100" rx="10" fill="#1e1e24"/>
+
+  <!-- Dog-ear fold -->
+  <path d="M84 14 L108 38 L84 38 Z" fill="#16161a"/>
+  <path d="M84 14 L84 38 L108 38" fill="#2a2a35" stroke="none"/>
+
+  <!-- Orange header strip -->
+  <rect x="20" y="14" width="64" height="24" rx="10" fill="#e5622a"/>
+  <rect x="20" y="26" width="64" height="12" fill="#e5622a"/>
+
+  <!-- 3 dots on header (route waypoints) -->
+  <circle cx="34" cy="26" r="4.5" fill="white" opacity="0.95"/>
+  <rect x="38" y="24.5" width="12" height="3" rx="1.5" fill="white" opacity="0.4"/>
+  <circle cx="56" cy="26" r="4.5" fill="white" opacity="0.95"/>
+  <rect x="60" y="24.5" width="8" height="3" rx="1.5" fill="white" opacity="0.4"/>
+  <circle cx="74" cy="26" r="4.5" fill="white" opacity="0.95"/>
+
+  <!-- Divider line under header -->
+  <rect x="20" y="50" width="88" height="1.5" fill="#2e2e3a"/>
+
+  <!-- Row 1 — col A dark, col B orange -->
+  <rect x="28" y="56" width="34" height="9" rx="3" fill="#2e2e3a"/>
+  <rect x="66" y="56" width="34" height="9" rx="3" fill="#e5622a" opacity="0.75"/>
+
+  <!-- Row 2 — col A orange, col B dark -->
+  <rect x="28" y="70" width="34" height="9" rx="3" fill="#e5622a" opacity="0.75"/>
+  <rect x="66" y="70" width="34" height="9" rx="3" fill="#2e2e3a"/>
+
+  <!-- Row 3 — col A dark, col B green -->
+  <rect x="28" y="84" width="34" height="9" rx="3" fill="#2e2e3a"/>
+  <rect x="66" y="84" width="34" height="9" rx="3" fill="#22c55e" opacity="0.7"/>
+
+  <!-- Row 4 — both dark -->
+  <rect x="28" y="98" width="34" height="9" rx="3" fill="#2e2e3a"/>
+  <rect x="66" y="98" width="20" height="9" rx="3" fill="#2e2e3a"/>
+</svg>
