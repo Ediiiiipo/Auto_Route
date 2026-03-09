@@ -2,272 +2,652 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
+  <title>SPX Auto Router</title>
   <style>
     :root {
-      --bg: #0f1419; --bg2: #1a1f25; --bg3: #242a32;
-      --border: #2d333b; --accent: #e5622a; --accent-bg: rgba(229,98,42,0.15);
-      --success: #22c55e; --success-bg: rgba(34,197,94,0.15);
-      --error: #ef4444; --error-bg: rgba(239,68,68,0.15);
-      --warn: #f59e0b; --warn-bg: rgba(245,158,11,0.15);
-      --blue: #3b82f6; --blue-bg: rgba(59,130,246,0.15);
-      --teal: #0891b2;
-      --text: #e6edf3; --text2: #c9d1d9; --text3: #8b949e;
+      /* Light graphite / silver-white */
+      --bg:            #F0F0F4;
+      --surface:       #FFFFFF;
+      --surface-2:     #F5F5F8;
+      --surface-3:     #EBEBEF;
+      --border:        #D4D4DC;
+      --border-subtle: #E4E4EA;
+
+      /* Shopee orange */
+      --accent:      #EE4D2D;
+      --accent-dim:  rgba(238,77,45,0.10);
+      --accent-glow: rgba(238,77,45,0.18);
+
+      /* Text */
+      --text:   #18181B;
+      --text-2: #52525B;
+      --text-3: #A1A1AA;
+
+      /* Semantic */
+      --success:     #16A34A;
+      --success-dim: rgba(22,163,74,0.10);
+      --error:       #DC2626;
+      --error-dim:   rgba(220,38,38,0.08);
+      --warn:        #D97706;
+      --warn-dim:    rgba(217,119,6,0.10);
+      --blue:        #2563EB;
+      --blue-dim:    rgba(37,99,235,0.10);
+
+      --radius:    10px;
+      --radius-sm: 6px;
+      --trans:     all 0.16s ease;
+
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow:    0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
     }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { width: 520px; max-height: 600px; overflow-y: auto; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; }
 
-    .header { padding: 14px 20px 10px; background: linear-gradient(135deg, var(--bg) 0%, var(--bg2) 100%); border-bottom: 1px solid var(--border); }
-    .header-top { display: flex; align-items: center; justify-content: space-between; }
-    .logo { display: flex; align-items: center; gap: 10px; }
-    .logo-icon { font-size: 22px; }
-    .logo h1 { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
-    .version { font-family: monospace; font-size: 11px; color: var(--accent); background: var(--accent-bg); padding: 2px 8px; border-radius: 10px; }
-    .header-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+    html {
+      width: 100%;
+      min-width: 420px;
+      height: 100%;
+    }
 
-    .status-bar { display: flex; align-items: center; gap: 8px; padding: 8px 20px; border-bottom: 1px solid var(--border); background: var(--bg2); }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--error); flex-shrink: 0; }
-    .status-dot.ok { background: var(--success); }
-    .status-text { font-size: 11px; color: var(--text3); }
+    body {
+      width: 100%;
+      min-width: 420px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
 
-    /* PHASE 1 — Select Template */
-    .phase { display: none; padding: 16px 20px; }
-    .phase.active { display: block; }
-    .phase-title { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.8px; display: flex; align-items: center; gap: 8px; }
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-    .btn-main { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 12px; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; color: #fff; cursor: pointer; transition: all 0.2s; }
-    .btn-main:hover { filter: brightness(1.1); transform: translateY(-1px); }
-    .btn-main:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-    .btn-accent { background: var(--accent); box-shadow: 0 4px 20px var(--accent-bg); }
-    .btn-success { background: var(--success); box-shadow: 0 4px 20px var(--success-bg); }
-    .btn-blue { background: var(--blue); box-shadow: 0 4px 20px var(--blue-bg); }
+    /* ── HEADER ── */
+    .header {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 18px 11px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-sm);
+      gap: 12px;
+    }
+    .header-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .header-logo {
+      width: 34px; height: 34px;
+      border-radius: 9px;
+      background: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px var(--accent-glow);
+    }
+    .header-titles { min-width: 0; }
+    .header-name {
+      font-size: 14px; font-weight: 700;
+      color: var(--text); letter-spacing: -0.3px; line-height: 1.2;
+    }
+    .header-station {
+      font-size: 10px; color: var(--text-3);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .header-station span { color: var(--text-2); font-weight: 500; }
+    .version-pill {
+      font-size: 10px; font-weight: 700;
+      color: var(--accent);
+      background: var(--accent-dim);
+      border: 1px solid rgba(238,77,45,0.2);
+      padding: 3px 9px; border-radius: 20px;
+      white-space: nowrap; flex-shrink: 0;
+    }
 
-    .file-info { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-top: 10px; font-size: 12px; color: var(--text3); display: none; }
-    .file-info .name { color: var(--text); font-weight: 600; }
+    /* ── STATUS BAR ── */
+    .status-bar {
+      flex-shrink: 0;
+      display: flex; align-items: center; gap: 7px;
+      padding: 6px 18px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .status-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--error); flex-shrink: 0;
+      transition: background 0.3s;
+    }
+    .status-dot.ok { background: var(--success); box-shadow: 0 0 5px rgba(22,163,74,0.5); }
+    .status-text { font-size: 11px; color: var(--text-3); }
 
-    /* PHASE 2 — Preview */
-    .config-row { display: flex; gap: 10px; margin-bottom: 10px; }
+    /* ── PHASE CONTAINER ── */
+    .phase-container {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .phase { display: none; padding: 18px; flex: 1; flex-direction: column; }
+    .phase.active { display: flex; }
+
+    .phase-title {
+      flex-shrink: 0;
+      font-size: 10px; font-weight: 700;
+      color: var(--text-3); text-transform: uppercase;
+      letter-spacing: 1.2px; margin-bottom: 14px;
+    }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: flex; align-items: center; justify-content: center;
+      gap: 7px; width: 100%;
+      padding: 11px 16px;
+      border: none; border-radius: var(--radius);
+      font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: var(--trans);
+      letter-spacing: -0.1px;
+    }
+    .btn:hover { filter: brightness(0.95); transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); filter: brightness(0.9); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; filter: none; }
+
+    .btn-primary {
+      background: var(--accent); color: #fff;
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+    .btn-success {
+      background: var(--success); color: #fff;
+      box-shadow: 0 4px 14px var(--success-dim);
+    }
+    .btn-ghost {
+      background: var(--surface); color: var(--text-2);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+    }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--accent); filter: none; transform: none; }
+    .btn-sm { font-size: 11px; padding: 8px 12px; }
+
+    /* ── FILE CARD ── */
+    .file-card {
+      display: none;
+      background: var(--surface-2);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius);
+      padding: 10px 14px; margin-top: 10px;
+    }
+    .file-name { color: var(--text); font-weight: 600; font-size: 12px; margin-bottom: 2px; }
+    .file-meta { color: var(--text-3); font-size: 11px; }
+
+    /* ── TOGGLES ── */
+    .toggles-group { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius);
+      padding: 10px 14px;
+      cursor: pointer; transition: var(--trans); user-select: none;
+      box-shadow: var(--shadow-sm);
+    }
+    .toggle-row:hover { border-color: var(--border); box-shadow: var(--shadow); }
+    .toggle-info { display: flex; align-items: center; gap: 10px; }
+    .toggle-icon {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: var(--surface-3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0;
+    }
+    .toggle-label {
+      font-size: 12px; font-weight: 600; color: var(--text);
+      display: flex; align-items: center; gap: 6px; line-height: 1.3;
+    }
+    .toggle-desc { font-size: 10px; color: var(--text-3); margin-top: 1px; }
+
+    .badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 20px; letter-spacing: 0.3px; }
+    .badge-on  { background: var(--success-dim); color: var(--success); }
+    .badge-off { background: var(--surface-3);   color: var(--text-3); }
+
+    .switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0;
+      background: var(--surface-3); border-radius: 20px;
+      cursor: pointer; transition: background 0.2s;
+      border: 1px solid var(--border);
+    }
+    .slider::before {
+      content: ''; position: absolute;
+      width: 14px; height: 14px; left: 2px; top: 2px;
+      background: var(--text-3); border-radius: 50%;
+      transition: transform 0.2s, background 0.2s;
+    }
+    .switch input:checked + .slider { background: var(--success); border-color: var(--success); }
+    .switch input:checked + .slider::before { transform: translateX(16px); background: #fff; }
+
+    /* ── PHASE 2 ── */
+    .config-grid { flex-shrink: 0; display: flex; gap: 10px; margin-bottom: 12px; }
     .config-field { flex: 1; }
-    .config-field label { display: block; font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
-    .config-field select, .config-field input { width: 100%; padding: 6px 10px; background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 12px; }
+    .config-field label {
+      display: block; font-size: 10px; font-weight: 600;
+      color: var(--text-3); text-transform: uppercase;
+      letter-spacing: 0.7px; margin-bottom: 5px;
+    }
+    .config-field select,
+    .config-field input {
+      width: 100%; padding: 7px 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text); font-size: 12px;
+      outline: none; transition: var(--trans);
+      box-shadow: var(--shadow-sm);
+    }
+    .config-field select:focus,
+    .config-field input:focus { border-color: var(--accent); }
+
     .shift-group { display: flex; gap: 4px; }
-    .shift-btn { flex: 1; padding: 6px 0; text-align: center; font-size: 11px; font-weight: 600; border-radius: 6px; cursor: pointer; background: var(--bg3); color: var(--text3); border: 1px solid var(--border); transition: all 0.2s; }
+    .shift-btn {
+      flex: 1; padding: 7px 0; text-align: center;
+      font-size: 11px; font-weight: 600;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      background: var(--surface); color: var(--text-3);
+      border: 1px solid var(--border);
+      transition: var(--trans); user-select: none;
+      box-shadow: var(--shadow-sm);
+    }
     .shift-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .shift-btn:hover:not(.active) { color: var(--text-2); }
 
-    .ct-summary { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
-    .ct-badge { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
-    .ct-badge.moto { background: var(--accent-bg); color: var(--accent); }
-    .ct-badge.passeio { background: var(--blue-bg); color: var(--blue); }
-    .ct-badge.vol { background: var(--warn-bg); color: var(--warn); }
-    .ct-badge.total { background: var(--bg3); color: var(--text2); }
+    .ct-summary { flex-shrink: 0; display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+    .ct-pill {
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 10px; font-weight: 600; letter-spacing: 0.2px;
+      border: 1px solid transparent;
+    }
+    .ct-pill.moto    { background: var(--accent-dim); color: var(--accent); border-color: rgba(238,77,45,0.15); }
+    .ct-pill.passeio { background: var(--blue-dim);   color: var(--blue);   border-color: rgba(37,99,235,0.15); }
+    .ct-pill.vol     { background: var(--warn-dim);   color: var(--warn);   border-color: rgba(217,119,6,0.15); }
+    .ct-pill.total   { background: var(--surface-3);  color: var(--text-2); border-color: var(--border-subtle); }
 
-    .ct-table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 11px; }
-    .ct-table th { text-align: left; padding: 6px 8px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px; border-bottom: 1px solid var(--border); }
-    .ct-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-    .ct-table tr.disabled { opacity: 0.45; }
-    .ct-table tr:hover { background: var(--bg3); }
-    .ct-table input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); }
-    .ct-table input[type="number"] { width: 50px; padding: 2px 4px; background: var(--bg3); border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 11px; text-align: center; }
-    .ct-table .type-moto { color: var(--accent); font-weight: 600; }
-    .ct-table .type-passeio { color: var(--blue); font-weight: 600; }
-    .ct-table .type-vol { color: var(--warn); font-weight: 600; }
-    .ct-table .baixo-ado { color: var(--error); font-style: italic; font-size: 10px; }
-    .table-wrap { max-height: 280px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--bg2); }
+    /* CT TABLE — flex-grow to fill space */
+    .table-wrap {
+      flex: 1;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius);
+      overflow: hidden;
+      overflow-y: auto;
+      background: var(--surface);
+      box-shadow: var(--shadow-sm);
+      min-height: 0;
+    }
+    .ct-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .ct-table thead { position: sticky; top: 0; z-index: 1; }
+    .ct-table th {
+      background: var(--surface-2);
+      text-align: left; padding: 9px 12px;
+      color: var(--text-3); font-weight: 600;
+      text-transform: uppercase; letter-spacing: 0.5px; font-size: 10px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .ct-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border-subtle);
+      vertical-align: middle;
+      background: var(--surface);
+    }
+    .ct-table tr:last-child td { border-bottom: none; }
+    .ct-table tr.disabled td { opacity: 0.35; }
+    .ct-table tr:hover td { background: var(--surface-2); }
+    .ct-table input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); width: 14px; height: 14px; }
+    .ct-table input[type="number"] {
+      width: 56px; padding: 4px 6px;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text); font-size: 12px; text-align: center;
+    }
+    .type-moto    { color: var(--accent); font-weight: 700; }
+    .type-passeio { color: var(--blue);   font-weight: 700; }
+    .type-vol     { color: var(--warn);   font-weight: 700; }
+    .baixo-ado    { color: var(--text-3); font-size: 11px; font-style: italic; }
 
-    /* PHASE 3 — Execution */
-    .progress-container { margin: 12px 0; }
-    .progress-bar { height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden; }
-    .progress-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s; width: 0%; }
-    .progress-text { font-size: 11px; color: var(--text3); margin-top: 6px; text-align: center; }
-    .step-list { margin: 12px 0; }
-    .step { display: flex; align-items: center; gap: 8px; padding: 6px 0; font-size: 12px; }
-    .step-icon { width: 20px; text-align: center; }
-    .step.done .step-icon { color: var(--success); }
-    .step.active .step-icon { color: var(--accent); }
-    .step.pending { color: var(--text3); }
+    .btn-row { flex-shrink: 0; display: flex; gap: 8px; margin-top: 12px; }
+    .btn-row .btn { flex: 1; }
 
-    /* PHASE 4 — Result */
-    .result-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin: 10px 0; text-align: center; }
-    .result-big { font-size: 28px; font-weight: 700; }
-    .result-label { font-size: 11px; color: var(--text3); margin-top: 2px; }
+    /* ── PHASE 3 ── */
+    .step-list { flex-shrink: 0; margin-bottom: 16px; display: flex; flex-direction: column; gap: 6px; }
+    .step {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 14px; border-radius: var(--radius-sm);
+      font-size: 12px; color: var(--text-3);
+      border: 1px solid transparent;
+    }
+    .step.active {
+      background: #FFF5F2; color: var(--accent);
+      border-color: rgba(238,77,45,0.15);
+      box-shadow: var(--shadow-sm);
+    }
+    .step.done {
+      background: #F0FDF4; color: var(--success);
+      border-color: rgba(22,163,74,0.15);
+    }
+    .step.pending { background: var(--surface-2); opacity: 0.5; }
+    .step-icon { font-size: 14px; flex-shrink: 0; }
 
-    /* Logs */
-    .log-area { padding: 0 20px 12px; }
-    .log-toggle { display: flex; align-items: center; justify-content: space-between; cursor: pointer; padding: 6px 0; user-select: none; }
-    .log-toggle h3 { font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; }
-    .log-toggle svg { width: 14px; height: 14px; color: var(--text3); transition: transform 0.2s; }
-    .log-toggle.open svg { transform: rotate(180deg); }
-    .log-body { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
-    .log-body.open { max-height: 200px; overflow-y: auto; }
-    .log-entry { font-family: 'Consolas', 'Monaco', monospace; font-size: 10px; padding: 2px 0; color: var(--text3); border-bottom: 1px solid rgba(255,255,255,0.03); }
-    .log-entry.info { color: var(--text2); }
+    .progress-wrap { flex-shrink: 0; }
+    .progress-bar {
+      height: 5px; background: var(--surface-3);
+      border-radius: 5px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent) 0%, #FF7A5A 100%);
+      border-radius: 5px; transition: width 0.35s ease; width: 0%;
+    }
+    .progress-label {
+      font-size: 11px; color: var(--text-3);
+      margin-top: 8px; text-align: center;
+    }
+
+    /* ── PHASE 4 ── */
+    .result-row { flex-shrink: 0; display: flex; gap: 10px; margin-bottom: 16px; }
+    .result-card {
+      flex: 1; background: var(--surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius);
+      padding: 16px 10px; text-align: center;
+      box-shadow: var(--shadow-sm);
+    }
+    .result-num { font-size: 28px; font-weight: 700; line-height: 1; }
+    .result-tag { font-size: 10px; color: var(--text-3); margin-top: 5px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    .info-card {
+      border-radius: var(--radius-sm); padding: 10px 13px; margin-bottom: 8px; border: 1px solid;
+    }
+    .info-card-title { font-size: 11px; font-weight: 600; margin-bottom: 2px; }
+    .info-card-body  { font-size: 10px; color: var(--text-3); }
+    .info-card.warn-card  { background: #FFFBEB; border-color: rgba(217,119,6,0.2); }
+    .info-card.warn-card  .info-card-title { color: var(--warn); }
+    .info-card.error-card { background: #FEF2F2; border-color: rgba(220,38,38,0.15); }
+    .info-card.error-card .info-card-title { color: var(--error); }
+
+    .btn-export-warn  { background: #FFFBEB; border: 1px solid rgba(217,119,6,0.25); color: var(--warn); }
+    .btn-export-error { background: #FEF2F2; border: 1px solid rgba(220,38,38,0.2);  color: var(--error); }
+
+    /* ── LOGS ── */
+    .log-area { flex-shrink: 0; padding: 0 18px 14px; }
+    .log-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 0; cursor: pointer; user-select: none;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .log-label {
+      font-size: 9px; font-weight: 700; color: var(--text-3);
+      text-transform: uppercase; letter-spacing: 1.2px;
+    }
+    .log-caret { width: 13px; height: 13px; color: var(--text-3); transition: transform 0.2s; }
+    .log-header.open .log-caret { transform: rotate(180deg); }
+    .log-body {
+      max-height: 0; overflow: hidden;
+      transition: max-height 0.3s ease;
+      background: var(--surface);
+      border: 0 solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+    }
+    .log-body.open { max-height: 200px; overflow-y: auto; border-width: 1px; }
+    .log-entry {
+      font-family: 'Consolas', 'SF Mono', monospace;
+      font-size: 10px; padding: 3px 10px;
+      color: var(--text-3);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .log-entry:last-child { border-bottom: none; }
+    .log-entry.info    { color: var(--text-2); }
     .log-entry.success { color: var(--success); }
-    .log-entry.warn { color: var(--warn); }
-    .log-entry.error { color: var(--error); }
-    .log-time { color: var(--text3); margin-right: 6px; }
+    .log-entry.warn    { color: var(--warn); }
+    .log-entry.error   { color: var(--error); }
+    .log-time { color: var(--text-3); margin-right: 6px; }
 
-    .spinner-sm { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .footer { padding: 8px 20px; text-align: center; font-family: monospace; font-size: 10px; color: var(--text3); }
+    /* ── FOOTER ── */
+    .footer {
+      flex-shrink: 0; padding: 6px 18px 10px;
+      text-align: center; font-size: 10px; color: var(--text-3);
+      border-top: 1px solid var(--border-subtle);
+      background: var(--surface);
+    }
     .footer a { color: var(--accent); text-decoration: none; }
 
-    /* GeoFixer Toggle */
-    .gfx-toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; margin-top: 10px; cursor: pointer; user-select: none; }
-    .gfx-toggle-row:hover { border-color: var(--accent); }
-    .gfx-toggle-info { display: flex; align-items: center; gap: 10px; }
-    .gfx-toggle-icon { font-size: 20px; }
-    .gfx-toggle-label { font-size: 12px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; }
-    .gfx-toggle-badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; background: var(--success-bg); color: var(--success); }
-    .gfx-toggle-badge.off { background: var(--bg3); color: var(--text3); }
-    .gfx-toggle-desc { font-size: 10px; color: var(--text3); margin-top: 2px; }
-    .toggles-section { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
-    .gfx-switch { position: relative; width: 38px; height: 22px; flex-shrink: 0; }
-    .gfx-switch input { opacity: 0; width: 0; height: 0; }
-    .gfx-slider { position: absolute; inset: 0; background: var(--bg3); border-radius: 22px; cursor: pointer; transition: background 0.2s; border: 1px solid var(--border); }
-    .gfx-slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px; background: var(--text3); border-radius: 50%; transition: transform 0.2s, background 0.2s; }
-    .gfx-switch input:checked + .gfx-slider { background: var(--success); border-color: var(--success); }
-    .gfx-switch input:checked + .gfx-slider::before { transform: translateX(16px); background: white; }
+    /* ── MISC ── */
+    .spinner {
+      width: 15px; height: 15px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin 0.8s linear infinite; flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="header-top">
-      <div class="logo">
-        <div class="logo-icon">🚀</div>
-        <div><h1>SPX Auto Router</h1></div>
-      </div>
-      <span class="version">v1.0.0</span>
-    </div>
-    <div class="header-sub">Template → Importação + Cálculos — Routing Tower</div>
-  </div>
 
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-brand">
+      <div class="header-logo">🚀</div>
+      <div class="header-titles">
+        <div class="header-name">SPX Auto Router</div>
+        <div class="header-station">Station: <span id="stationLabel">—</span></div>
+      </div>
+    </div>
+    <span class="version-pill">v2.9</span>
+  </header>
+
+  <!-- STATUS -->
   <div class="status-bar">
     <div class="status-dot" id="statusDot"></div>
     <span class="status-text" id="statusText">Verificando conexão...</span>
   </div>
 
-  <!-- PHASE 1: Select Template -->
-  <div class="phase active" id="phase1">
-    <div class="phase-title">📁 Selecionar Template</div>
-    <input type="file" id="fileInput" accept=".xlsm,.xlsx,.xls" style="display:none">
-    <button class="btn-main btn-accent" id="btnSelect">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
-      Selecionar Template (.xlsm / .xlsx)
-    </button>
-    <div class="file-info" id="fileInfo">
-      <div class="name" id="fileName"></div>
-      <div id="fileDetails"></div>
+  <!-- PHASE CONTAINER (fills all remaining space) -->
+  <div class="phase-container">
+
+    <!-- ─── PHASE 1: SELECT TEMPLATE ─── -->
+    <div class="phase active" id="phase1">
+      <div class="phase-title">Selecionar Template</div>
+
+      <input type="file" id="fileInput" accept=".xlsm,.xlsx,.xls" style="display:none">
+      <button class="btn btn-primary" id="btnSelect">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="12" y1="18" x2="12" y2="12"/>
+          <line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+        Selecionar Template (.xlsm / .xlsx)
+      </button>
+
+      <div class="file-card" id="fileInfo">
+        <div class="file-name" id="fileName"></div>
+        <div class="file-meta" id="fileDetails"></div>
+      </div>
+
+      <div class="toggles-group">
+        <div class="toggle-row" id="gfxToggleRow">
+          <div class="toggle-info">
+            <div class="toggle-icon">📍</div>
+            <div>
+              <div class="toggle-label">
+                Correção de Pins
+                <span class="badge badge-on" id="gfxBadge">ATIVO</span>
+              </div>
+              <div class="toggle-desc">GeoFixer corrige outliers em cada CT</div>
+            </div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="gfxEnabled" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="toggle-row" id="comerciaisToggleRow">
+          <div class="toggle-info">
+            <div class="toggle-icon">🏢</div>
+            <div>
+              <div class="toggle-label">
+                Remover Comerciais
+                <span class="badge badge-off" id="comerciaisBadge">DESATIVADO</span>
+              </div>
+              <div class="toggle-desc">Remove Office, Return to Seller e Service Point</div>
+            </div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="comerciaisEnabled">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
     </div>
 
-    <div class="toggles-section">
-      <div class="gfx-toggle-row" id="gfxToggleRow">
-        <div class="gfx-toggle-info">
-          <span class="gfx-toggle-icon">📍</span>
-          <div>
-            <div class="gfx-toggle-label">Correção de Pins <span class="gfx-toggle-badge" id="gfxBadge">ATIVO</span></div>
-            <div class="gfx-toggle-desc">GeoFixer corrige outliers em cada CT</div>
+    <!-- ─── PHASE 2: PREVIEW & CONFIG ─── -->
+    <div class="phase" id="phase2">
+      <div class="phase-title">Revisar e Configurar</div>
+
+      <div class="config-grid">
+        <div class="config-field">
+          <label>Data</label>
+          <select id="calcDate">
+            <option value="tomorrow" selected>Amanhã</option>
+            <option value="today">Hoje</option>
+          </select>
+        </div>
+        <div class="config-field">
+          <label>Turno</label>
+          <div class="shift-group">
+            <div class="shift-btn active" id="shiftAM">AM</div>
+            <div class="shift-btn" id="shiftPM1">PM-1</div>
+            <div class="shift-btn" id="shiftPM2">PM-2</div>
           </div>
         </div>
-        <label class="gfx-switch">
-          <input type="checkbox" id="gfxEnabled" checked>
-          <span class="gfx-slider"></span>
-        </label>
       </div>
 
-      <div class="gfx-toggle-row" id="comerciaisToggleRow">
-        <div class="gfx-toggle-info">
-          <span class="gfx-toggle-icon">🏢</span>
-          <div>
-            <div class="gfx-toggle-label">Remover Comerciais <span class="gfx-toggle-badge off" id="comerciaisBadge">DESATIVADO</span></div>
-            <div class="gfx-toggle-desc">Remove Office, Return to Seller e Service Point</div>
-          </div>
+      <div class="ct-summary" id="ctSummary"></div>
+
+      <div class="table-wrap">
+        <table class="ct-table">
+          <thead>
+            <tr>
+              <th style="width:32px;"></th>
+              <th>Tipo</th>
+              <th>Cluster</th>
+              <th>IDs</th>
+              <th>SPR</th>
+              <th>Rotas</th>
+            </tr>
+          </thead>
+          <tbody id="ctTableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-ghost" id="btnBack" style="flex:0.35;">← Voltar</button>
+        <button class="btn btn-success" id="btnExecute" style="flex:0.65;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="15" height="15">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          Executar Automação
+        </button>
+      </div>
+    </div>
+
+    <!-- ─── PHASE 3: EXECUTION ─── -->
+    <div class="phase" id="phase3">
+      <div class="phase-title">Executando</div>
+
+      <div class="step-list">
+        <div class="step active" id="stepImport">
+          <span class="step-icon">⏳</span>
+          <span>Criando CTs e importando pedidos...</span>
         </div>
-        <label class="gfx-switch">
-          <input type="checkbox" id="comerciaisEnabled">
-          <span class="gfx-slider"></span>
-        </label>
-      </div>
-    </div>
-  </div>
-
-  <!-- PHASE 2: Preview & Config -->
-  <div class="phase" id="phase2">
-    <div class="phase-title">⚙️ Revisar e Configurar</div>
-    <div class="config-row">
-      <div class="config-field">
-        <label>Data</label>
-        <select id="calcDate"><option value="tomorrow" selected>🗓️ AMANHÃ</option><option value="today">📅 HOJE</option></select>
-      </div>
-      <div class="config-field">
-        <label>Turno</label>
-        <div class="shift-group">
-          <div class="shift-btn active" id="shiftAM">AM</div>
-          <div class="shift-btn" id="shiftPM1">PM-1</div>
-          <div class="shift-btn" id="shiftPM2">PM-2</div>
+        <div class="step pending" id="stepCalc">
+          <span class="step-icon">⏸</span>
+          <span>Calculando roteirizações...</span>
         </div>
       </div>
+
+      <div class="progress-wrap">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-label" id="progressText">Preparando...</div>
+      </div>
     </div>
 
-    <div class="ct-summary" id="ctSummary"></div>
+    <!-- ─── PHASE 4: RESULT ─── -->
+    <div class="phase" id="phase4">
+      <div class="phase-title">Concluído</div>
 
-    <div class="table-wrap">
-      <table class="ct-table">
-        <thead><tr><th></th><th>Tipo</th><th>Cluster</th><th>IDs</th><th>SPR</th><th>Rotas</th></tr></thead>
-        <tbody id="ctTableBody"></tbody>
-      </table>
-    </div>
+      <div class="result-row">
+        <div class="result-card">
+          <div class="result-num" id="resCTs" style="color:var(--accent);">0</div>
+          <div class="result-tag">CTs Criadas</div>
+        </div>
+        <div class="result-card">
+          <div class="result-num" id="resIDs" style="color:var(--blue);">0</div>
+          <div class="result-tag">IDs Importados</div>
+        </div>
+        <div class="result-card">
+          <div class="result-num" id="resCalc" style="color:var(--success);">0</div>
+          <div class="result-tag">Calculados</div>
+        </div>
+      </div>
 
-    <div style="display:flex; gap:8px; margin-top:12px;">
-      <button class="btn-main btn-blue" id="btnBack" style="flex:0.4;">← Voltar</button>
-      <button class="btn-main btn-success" id="btnExecute" style="flex:0.6;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        Executar
+      <div id="comerciaisResult" style="display:none;">
+        <div class="info-card warn-card">
+          <div class="info-card-title">🏢 Pedidos Comerciais Removidos</div>
+          <div class="info-card-body" id="comerciaisCount"></div>
+        </div>
+        <button class="btn btn-ghost btn-sm btn-export-warn" id="btnExportComerciais">
+          📊 Exportar Lista de Comerciais (.xlsx)
+        </button>
+      </div>
+
+      <div id="importErrorResult" style="display:none; margin-top:10px;">
+        <div class="info-card error-card">
+          <div class="info-card-title">❌ Pedidos com Erro de Importação</div>
+          <div class="info-card-body" id="importErrorCount"></div>
+        </div>
+        <button class="btn btn-ghost btn-sm btn-export-error" id="btnExportImportErrors">
+          📊 Exportar Pedidos com Erro (.xlsx)
+        </button>
+      </div>
+
+      <button class="btn btn-primary" id="btnRestart" style="margin-top:14px;">
+        🔄 Novo Template
       </button>
     </div>
-  </div>
 
-  <!-- PHASE 3: Execution -->
-  <div class="phase" id="phase3">
-    <div class="phase-title">⚡ Executando</div>
-    <div class="step-list" id="stepList">
-      <div class="step active" id="stepImport"><span class="step-icon">⏳</span> Criando CTs e enviando IDs...</div>
-      <div class="step pending" id="stepCalc"><span class="step-icon">⏸️</span> Calculando roteirizações...</div>
-    </div>
-    <div class="progress-container">
-      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-      <div class="progress-text" id="progressText">Preparando...</div>
-    </div>
-  </div>
+  </div><!-- /phase-container -->
 
-  <!-- PHASE 4: Result -->
-  <div class="phase" id="phase4">
-    <div class="phase-title">✅ Concluído</div>
-    <div style="display:flex; gap:10px;">
-      <div class="result-card" style="flex:1;"><div class="result-big" id="resCTs" style="color:var(--accent);">0</div><div class="result-label">CTs Criadas</div></div>
-      <div class="result-card" style="flex:1;"><div class="result-big" id="resIDs" style="color:var(--blue);">0</div><div class="result-label">IDs Enviados</div></div>
-      <div class="result-card" style="flex:1;"><div class="result-big" id="resCalc" style="color:var(--success);">0</div><div class="result-label">Calculados</div></div>
-    </div>
-    <div id="comerciaisResult" style="display:none; margin-top:10px;">
-      <div style="background:rgba(234,179,8,0.1); border:1px solid rgba(234,179,8,0.3); border-radius:8px; padding:10px 12px; margin-bottom:8px;">
-        <div style="color:#eab308; font-size:12px; font-weight:600; margin-bottom:4px;">🏢 Pedidos Comerciais Removidos</div>
-        <div id="comerciaisCount" style="color:#94a3b8; font-size:11px;"></div>
-      </div>
-      <button class="btn-main btn-blue" id="btnExportComerciais" style="font-size:12px; padding:8px 12px;">
-        📋 Exportar Lista de Comerciais (.txt)
-      </button>
-    </div>
-    <button class="btn-main btn-accent" id="btnRestart" style="margin-top:12px;">🔄 Novo Template</button>
-  </div>
-
+  <!-- ─── LOGS ─── -->
   <div class="log-area">
-    <div class="log-toggle" id="logToggle">
-      <h3>Logs</h3>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    <div class="log-header" id="logToggle">
+      <span class="log-label">Logs</span>
+      <svg class="log-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
     </div>
     <div class="log-body" id="logBody"></div>
   </div>
 
-  <div class="footer">🚀 SPX Auto Router — by <a href="#">Éd1p0</a> — Routing Tower</div>
+  <div class="footer">SPX Auto Router — by <a href="#">Éd1p0</a> — Routing Tower</div>
 
   <script src="libs/xlsx.min.js"></script>
   <script src="popup.js"></script>

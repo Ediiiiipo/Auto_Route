@@ -24,24 +24,38 @@ function showPhase(n) {
   $(`phase${n}`).classList.add('active');
 }
 
+// ---- SPX Tab Detection ----
+async function getSPXTab() {
+  const tabs = await chrome.tabs.query({ url: 'https://spx.shopee.com.br/*' });
+  return tabs[0] || null;
+}
+
 // ---- Connection Check ----
 async function checkConnection() {
   try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.url?.includes('spx.shopee.com.br')) {
+    const tab = await getSPXTab();
+    if (tab) {
       $('statusDot').classList.add('ok');
       $('statusText').textContent = 'Conectado ao SPX';
+      // Fetch station name asynchronously (non-blocking)
+      runInTab(getStationName).then(name => {
+        if (name) {
+          $('stationLabel').textContent = name;
+          document.title = `SPX Auto Router — ${name}`;
+        }
+      }).catch(() => {});
       return true;
     }
   } catch(e) {}
   $('statusDot').classList.remove('ok');
-  $('statusText').textContent = 'Abra o SPX primeiro';
+  $('statusText').textContent = 'Abra o SPX (spx.shopee.com.br) primeiro';
   return false;
 }
 
 // ---- Run function in page MAIN world ----
 async function runInTab(fn, args = []) {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = await getSPXTab();
+  if (!tab) throw new Error('Aba SPX não encontrada');
   const results = await chrome.scripting.executeScript({
     target: { tabId: tab.id },
     world: 'MAIN',
@@ -335,11 +349,11 @@ function renderPreview() {
 
   // Summary badges
   $('ctSummary').innerHTML = `
-    <span class="ct-badge total">${totalCTs} CTs</span>
-    <span class="ct-badge total">${totalIDs.toLocaleString()} IDs</span>
-    ${motos ? `<span class="ct-badge moto">🏍️ ${motos} Moto</span>` : ''}
-    ${passeios ? `<span class="ct-badge passeio">🚗 ${passeios} Passeio</span>` : ''}
-    ${vols ? `<span class="ct-badge vol">🚐 ${vols} Vol</span>` : ''}
+    <span class="ct-pill total">${totalCTs} CTs</span>
+    <span class="ct-pill total">${totalIDs.toLocaleString()} IDs</span>
+    ${motos ? `<span class="ct-pill moto">🏍️ ${motos} Moto</span>` : ''}
+    ${passeios ? `<span class="ct-pill passeio">🚗 ${passeios} Passeio</span>` : ''}
+    ${vols ? `<span class="ct-pill vol">🚐 ${vols} Vol</span>` : ''}
   `;
 
   // Checkbox listeners
@@ -412,6 +426,29 @@ function getStationId() {
   return null;
 }
 
+function getStationName() {
+  try {
+    // Try common localStorage keys
+    const candidates = ['station_name', 'stationName', 'hub_name', 'hubName', 'lm_hub_name'];
+    for (const k of candidates) {
+      const v = localStorage.getItem(k);
+      if (v && v.length > 1) return v;
+    }
+    // Try to find any key with "station" + "name" in it
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.toLowerCase().includes('station') && k.toLowerCase().includes('name')) {
+        const v = localStorage.getItem(k);
+        if (v && v.length > 1 && v.length < 80) return v;
+      }
+    }
+    // Fallback: try to read from page DOM (breadcrumb / header)
+    const el = document.querySelector('[class*="station-name"], [class*="hub-name"], [data-station], .station-info');
+    if (el?.textContent?.trim()) return el.textContent.trim().slice(0, 60);
+  } catch(e) {}
+  return null;
+}
+
 async function executeImport(enabledCTs) {
   log('Iniciando importação...', 'info');
 
@@ -432,6 +469,7 @@ async function executeImport(enabledCTs) {
   log(`Ordem de criação: ${creationOrder.map(c => `${c.typeLabel} ${c.cluster}`).join(' → ')}`, 'info');
 
   const results = { created: 0, sent: 0, errors: 0 };
+  const pedidosComErro = []; // { id, cluster, typeLabel, error }
 
   for (let i = 0; i < creationOrder.length; i++) {
     const ct = creationOrder[i];
@@ -461,7 +499,18 @@ async function executeImport(enabledCTs) {
       if (addResult?.success) {
         sentForCT += batch.length;
       } else {
-        log(`⚠️ Falha batch ${b+1}-${b+batch.length}: ${addResult?.error || 'erro'}`, 'warn');
+        // Batch failed — retry each ID individually to isolate the problematic ones
+        log(`⚠️ Batch ${b+1}–${b+batch.length} falhou (${addResult?.error || 'erro'}). Revalidando pedidos individualmente...`, 'warn');
+        for (const id of batch) {
+          const singleResult = await runInTab(addShipmentsToCT, [[id], stationId, ctId]);
+          if (singleResult?.success) {
+            sentForCT++;
+          } else {
+            pedidosComErro.push({ id, cluster: ct.cluster, typeLabel: ct.typeLabel, error: singleResult?.error || 'erro desconhecido' });
+            log(`❌ Pedido ${id} rejeitado (${ct.cluster}) — ${singleResult?.error || 'erro'}`, 'error');
+          }
+          await new Promise(r => setTimeout(r, 80));
+        }
       }
       await new Promise(r => setTimeout(r, 300));
     }
@@ -471,8 +520,11 @@ async function executeImport(enabledCTs) {
     await new Promise(r => setTimeout(r, 500));
   }
 
-  log(`Importação: ${results.created} CTs criadas, ${results.sent} IDs enviados, ${results.errors} erros`, results.errors ? 'warn' : 'success');
-  return { ...results, stationId };
+  log(`Importação: ${results.created} CTs criadas, ${results.sent} IDs enviados, ${results.errors} erros de CT`, results.errors ? 'warn' : 'success');
+  if (pedidosComErro.length > 0) {
+    log(`⚠️ ${pedidosComErro.length} pedido(s) com erro de importação — veja relatório`, 'warn');
+  }
+  return { ...results, stationId, pedidosComErro };
 }
 
 // ============================================================
@@ -616,7 +668,7 @@ async function executeCalcAPI(enabledCTs, config, stationId) {
   const rosterEventId = event.event_id;
   log(`Turno ${config.shift} → evento ${rosterEventId}`, 'success');
 
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  const tab = await getSPXTab();
   let successCount = 0, failCount = 0;
 
   for (let i = 0; i < calcOrder.length; i++) {
@@ -698,7 +750,7 @@ $('comerciaisEnabled').addEventListener('change', () => {
   const on = $('comerciaisEnabled').checked;
   const badge = $('comerciaisBadge');
   badge.textContent = on ? 'ATIVO' : 'DESATIVADO';
-  badge.className = on ? 'gfx-toggle-badge' : 'gfx-toggle-badge off';
+  badge.className = on ? 'badge badge-on' : 'badge badge-off';
   // Re-parseia o template com o novo estado do filtro (se já foi carregado)
   if (templateBuffer) applyTemplate(templateBuffer, on);
 });
@@ -708,7 +760,7 @@ $('gfxEnabled').addEventListener('change', () => {
   const on = $('gfxEnabled').checked;
   const badge = $('gfxBadge');
   badge.textContent = on ? 'ATIVO' : 'DESATIVADO';
-  badge.className = on ? 'gfx-toggle-badge' : 'gfx-toggle-badge off';
+  badge.className = on ? 'badge badge-on' : 'badge badge-off';
   console.log('📍 Correção de Pins:', on ? 'ATIVO' : 'DESATIVADO');
 });
 
@@ -719,7 +771,7 @@ $('shiftPM2').addEventListener('click', () => { $('shiftPM2').classList.add('act
 
 // Log toggle
 $('logToggle').addEventListener('click', () => {
-  $('logToggle').classList.toggle('open');
+  $('logToggle').classList.toggle('open');   // log-header.open rotates caret
   $('logBody').classList.toggle('open');
 });
 
@@ -751,7 +803,7 @@ $('fileInput').addEventListener('change', async (e) => {
   if (!file) return;
 
   $('btnSelect').disabled = true;
-  $('btnSelect').innerHTML = '<div class="spinner-sm"></div> Lendo template...';
+  $('btnSelect').innerHTML = '<div class="spinner"></div> Lendo template...';
   log(`Arquivo: ${file.name} (${(file.size/1024).toFixed(0)} KB)`, 'info');
 
   try {
@@ -845,37 +897,108 @@ $('btnExecute').addEventListener('click', async () => {
     $('comerciaisResult').style.display = 'none';
   }
 
+  // Mostrar painel de erros de importação
+  const erros = importResult?.pedidosComErro || [];
+  if (erros.length > 0) {
+    window._pedidosComErro = erros;
+    $('importErrorResult').style.display = 'block';
+    const porCluster = erros.reduce((acc, r) => { acc[r.cluster] = (acc[r.cluster]||0)+1; return acc; }, {});
+    const resumoErros = Object.entries(porCluster).map(([c,n]) => `${c}: ${n}`).join(' | ');
+    $('importErrorCount').textContent = `${erros.length} pedido(s) — ${resumoErros}`;
+  } else {
+    $('importErrorResult').style.display = 'none';
+  }
+
   showPhase(4);
   isRunning = false;
 });
 
-// Exportar lista de comerciais
-$('btnExportComerciais').addEventListener('click', () => {
-  const removidos = templateData?.comerciaisRemovidos || [];
-  if (removidos.length === 0) return;
-
-  const linhas = [
-    `Relatório de Pedidos Comerciais Removidos`,
-    `Gerado em: ${new Date().toLocaleString('pt-BR')}`,
-    `Total: ${removidos.length} pedido(s)`,
-    ``,
-    `${'Shipment ID'.padEnd(25)} | ${'Tipo'.padEnd(20)} | ${'Cluster'.padEnd(30)} | Perfil`,
-    `${'-'.repeat(100)}`,
-    ...removidos.map(r =>
-      `${String(r.id).padEnd(25)} | ${String(r.tipo).padEnd(20)} | ${String(r.cluster).padEnd(30)} | ${r.perfil||''}`
-    )
-  ];
-
-  const blob = new Blob([linhas.join('\n')], { type: 'text/plain;charset=utf-8' });
+// ---- Helper: download XLSX blob ----
+function downloadXLSX(wb, filename) {
+  const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const blob = new Blob([wbout], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `comerciais_removidos_${new Date().toISOString().slice(0,10)}.txt`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// ---- Helper: apply header style ----
+function styleSheetHeader(ws, cols) {
+  const headerStyle = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: 'EE4D2D' } }, alignment: { horizontal: 'center' } };
+  cols.forEach((_, ci) => {
+    const cell = ws[XLSX.utils.encode_cell({ r: 0, c: ci })];
+    if (cell) cell.s = headerStyle;
+  });
+}
+
+// Exportar lista de comerciais (.xlsx)
+$('btnExportComerciais').addEventListener('click', () => {
+  const removidos = templateData?.comerciaisRemovidos || [];
+  if (removidos.length === 0) return;
+
+  const dataTs = new Date().toLocaleString('pt-BR');
+  const rows = removidos.map(r => ({
+    'Shipment ID': String(r.id),
+    'Tipo':        String(r.tipo),
+    'Cluster':     String(r.cluster),
+    'Perfil':      String(r.perfil || '')
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{ wch: 28 }, { wch: 22 }, { wch: 32 }, { wch: 14 }];
+  styleSheetHeader(ws, rows[0] ? Object.keys(rows[0]) : []);
+
+  // Info sheet
+  const wsInfo = XLSX.utils.aoa_to_sheet([
+    ['Relatório de Pedidos Comerciais Removidos'],
+    ['Gerado em:', dataTs],
+    ['Total:', removidos.length]
+  ]);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Comerciais Removidos');
+  XLSX.utils.book_append_sheet(wb, wsInfo, 'Info');
+
+  const date = new Date().toISOString().slice(0, 10);
+  downloadXLSX(wb, `comerciais_removidos_${date}.xlsx`);
   log(`📁 Relatório de comerciais exportado (${removidos.length} pedidos)`, 'success');
+});
+
+// Exportar pedidos com erro de importação (.xlsx)
+$('btnExportImportErrors').addEventListener('click', () => {
+  const erros = window._pedidosComErro || [];
+  if (erros.length === 0) return;
+
+  const dataTs = new Date().toLocaleString('pt-BR');
+  const rows = erros.map(r => ({
+    'Shipment ID': String(r.id),
+    'Cluster':     String(r.cluster),
+    'Tipo':        String(r.typeLabel).replace(/[^\w\s.]/g, '').trim(),
+    'Erro':        String(r.error)
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{ wch: 28 }, { wch: 32 }, { wch: 12 }, { wch: 50 }];
+  styleSheetHeader(ws, rows[0] ? Object.keys(rows[0]) : []);
+
+  const wsInfo = XLSX.utils.aoa_to_sheet([
+    ['Relatório de Pedidos com Erro de Importação'],
+    ['Gerado em:', dataTs],
+    ['Total:', erros.length]
+  ]);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Erros de Importação');
+  XLSX.utils.book_append_sheet(wb, wsInfo, 'Info');
+
+  const date = new Date().toISOString().slice(0, 10);
+  downloadXLSX(wb, `pedidos_erro_importacao_${date}.xlsx`);
+  log(`📁 Relatório de erros exportado (${erros.length} pedidos)`, 'success');
 });
 
 // Restart
@@ -883,9 +1006,11 @@ $('btnRestart').addEventListener('click', () => {
   templateData = null;
   templateBuffer = null;
   ctList = [];
+  window._pedidosComErro = [];
   $('fileInput').value = '';
   $('fileInfo').style.display = 'none';
   $('comerciaisResult').style.display = 'none';
+  $('importErrorResult').style.display = 'none';
   $('logBody').innerHTML = '';
   showPhase(1);
 });
@@ -896,8 +1021,8 @@ checkConnection();
 // Toggle rows — clique em qualquer lugar da linha ativa o switch
 ['gfxToggleRow', 'comerciaisToggleRow'].forEach(rowId => {
   $( rowId).addEventListener('click', (e) => {
-    // Evita duplo disparo se clicou direto no input/label
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL' || e.target.classList.contains('gfx-slider')) return;
+    // Evita duplo disparo se clicou direto no input/label/slider
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'LABEL' || e.target.classList.contains('slider')) return;
     const input = $(rowId).querySelector('input[type="checkbox"]');
     if (input) input.click();
   });
