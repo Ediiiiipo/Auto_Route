@@ -1054,7 +1054,8 @@ function generateReport(ctList, templateData, importResult, calcResult, config) 
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#EAEAEF;color:#18181B;font-size:12px;line-height:1.5;}
 
 /* HDR */
-.hdr{background:#fff;border-bottom:3px solid #EE4D2D;padding:9px 18px;display:flex;align-items:center;gap:10px;}
+.hdr{background:#fff;border-bottom:3px solid #EE4D2D;padding:9px 16px;}
+.hdr-inner{max-width:1020px;margin:0 auto;display:flex;align-items:center;gap:10px;}
 .hdr-brand{display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .hdr-icon{width:28px;height:28px;background:#EE4D2D;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;}
 .hdr-title{font-size:13px;font-weight:800;line-height:1.2;}
@@ -1070,12 +1071,18 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .btn-share{background:#F0F0F4;color:#52525b;border:1px solid #D4D4DC;}
 .btn:hover{opacity:.82;}
 
+/* MINI INDICATORS (inside donut panel) */
+.mi-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:10px;padding-top:10px;border-top:1px solid #F0F0F4;}
+.mi{display:flex;align-items:center;justify-content:space-between;background:#F5F5F8;border-radius:6px;padding:5px 8px;}
+.mi-lbl{font-size:9px;color:#71717a;flex:1;margin:0 5px;}
+.mi-val{font-size:13px;font-weight:800;}
+
 /* PAGE */
 .page{padding:12px 16px 20px;max-width:1020px;margin:0 auto;display:flex;flex-direction:column;gap:10px;}
 
 /* GRID ROWS */
 .top-row{display:grid;grid-template-columns:1fr 1fr 200px;gap:10px;align-items:start;}
-.bot-row{display:grid;grid-template-columns:1fr 200px;gap:10px;align-items:start;}
+.bot-row{display:grid;grid-template-columns:1fr;gap:10px;}
 
 /* PANEL */
 .panel{background:#fff;border-radius:9px;box-shadow:0 1px 3px rgba(0,0,0,.07);overflow:hidden;}
@@ -1136,7 +1143,6 @@ tbody tr:last-child td{border-bottom:none;}
   .panel{box-shadow:none;border:1px solid #e4e4ea;break-inside:avoid;}
   .page{padding:6px;}
   .top-row{grid-template-columns:1fr 1fr 180px;}
-  .bot-row{grid-template-columns:1fr 180px;}
 }
 </style>
 </head>
@@ -1156,22 +1162,24 @@ tbody tr:last-child td{border-bottom:none;}
 </div>
 
 <div class="hdr">
-  <div class="hdr-brand">
-    <div class="hdr-icon">🚀</div>
-    <div>
-      <div class="hdr-title">Relatório de Execução</div>
-      <div class="hdr-sub">SPX Auto Router</div>
+  <div class="hdr-inner">
+    <div class="hdr-brand">
+      <div class="hdr-icon">🚀</div>
+      <div>
+        <div class="hdr-title">Relatório de Execução</div>
+        <div class="hdr-sub">SPX Auto Router</div>
+      </div>
     </div>
-  </div>
-  <div class="hdr-meta">
-    <div class="hm"><span class="hm-lbl">Estação</span><span class="hm-val">${station}</span></div>
-    <div class="hm"><span class="hm-lbl">Ciclo</span><span class="hm-val">${shiftLabel}</span></div>
-    <div class="hm"><span class="hm-lbl">Expedição</span><span class="hm-val">${dateFormatted}</span></div>
-    <div class="hm"><span class="hm-lbl">Gerado em</span><span class="hm-val">${now}</span></div>
-  </div>
-  <div class="hdr-btns">
-    <button class="btn btn-share" id="btnShare">📤 Compartilhar</button>
-    <button class="btn btn-print" id="btnPrint">🖨️ Imprimir</button>
+    <div class="hdr-meta">
+      <div class="hm"><span class="hm-lbl">Estação</span><span class="hm-val">${station}</span></div>
+      <div class="hm"><span class="hm-lbl">Ciclo</span><span class="hm-val">${shiftLabel}</span></div>
+      <div class="hm"><span class="hm-lbl">Expedição</span><span class="hm-val">${dateFormatted}</span></div>
+      <div class="hm"><span class="hm-lbl">Gerado em</span><span class="hm-val">${now}</span></div>
+    </div>
+    <div class="hdr-btns">
+      <button class="btn btn-share" id="btnShare">📤 Compartilhar</button>
+      <button class="btn btn-print" id="btnPrint">🖨️ Imprimir</button>
+    </div>
   </div>
 </div>
 
@@ -1202,10 +1210,19 @@ tbody tr:last-child td{border-bottom:none;}
         </div>
         <span class="ph-sub">${totalRoutes} rotas</span>
       </div>
-      <div class="pb" style="display:flex;align-items:center;gap:14px;">
-        ${donutSVG(donutSegs)}
-        <div style="flex:1;">
-          ${legendHTML || '<span style="font-size:10px;color:#a1a1aa;">—</span>'}
+      <div class="pb">
+        <div style="display:flex;align-items:center;gap:14px;">
+          ${donutSVG(donutSegs)}
+          <div style="flex:1;">
+            ${legendHTML || '<span style="font-size:10px;color:#a1a1aa;">—</span>'}
+          </div>
+        </div>
+        <div class="mi-grid">
+          <div class="mi"><span>🚚</span><span class="mi-lbl">LH Trips</span><span class="mi-val" style="color:#7C3AED;">${lhTrips.length}</span></div>
+          <div class="mi"><span>⏪</span><span class="mi-lbl">Backlog</span><span class="mi-val" style="color:#D97706;">${backlog.toLocaleString('pt-BR')}</span></div>
+          <div class="mi"><span>⚠️</span><span class="mi-lbl">Baixo ADO</span><span class="mi-val" style="color:#D97706;">${baixoADO.length}</span></div>
+          <div class="mi"><span>🏢</span><span class="mi-lbl">Comerciais</span><span class="mi-val" style="color:#52525b;">${comerciais.length}</span></div>
+          <div class="mi" style="grid-column:span 2;"><span>❌</span><span class="mi-lbl">Erros de Importação</span><span class="mi-val" style="color:${erros.length > 0 ? '#DC2626' : '#a1a1aa'};">${erros.length}</span></div>
         </div>
       </div>
     </div>
@@ -1246,18 +1263,6 @@ tbody tr:last-child td{border-bottom:none;}
           </tr></thead>
           <tbody>${clusterRows}</tbody>
         </table>
-      </div>
-    </div>
-
-    <!-- Outros Indicadores -->
-    <div class="panel">
-      <div class="ph"><span class="ph-title">Outros Indicadores</span></div>
-      <div class="pb">
-        <div class="ind-row"><span class="ind-lbl">🚚 LH Trips</span><span class="ind-val" style="color:#7C3AED;">${lhTrips.length}</span></div>
-        <div class="ind-row"><span class="ind-lbl">⏪ Backlog</span><span class="ind-val" style="color:#D97706;">${backlog.toLocaleString('pt-BR')}</span></div>
-        <div class="ind-row"><span class="ind-lbl">⚠️ Baixo ADO</span><span class="ind-val" style="color:#D97706;">${baixoADO.length}</span></div>
-        <div class="ind-row"><span class="ind-lbl">🏢 Comerciais</span><span class="ind-val" style="color:#52525b;">${comerciais.length}</span></div>
-        <div class="ind-row"><span class="ind-lbl">❌ Erros Import.</span><span class="ind-val" style="color:${erros.length > 0 ? '#DC2626' : '#a1a1aa'};">${erros.length}</span></div>
       </div>
     </div>
 
