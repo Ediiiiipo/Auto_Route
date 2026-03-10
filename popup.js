@@ -929,7 +929,7 @@ $('btnExecute').addEventListener('click', async () => {
     window._lastReport = html;
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
-    chrome.tabs.create({ url: url });
+    window.open(url, '_blank');
     $('btnOpenReport').style.display = 'flex';
     log('📊 Relatório de execução gerado e aberto', 'success');
   } catch(e) {
@@ -952,297 +952,367 @@ function generateReport(ctList, templateData, importResult, calcResult, config) 
   const baixoADO    = ctList.filter(ct => ct.isBaixoADO);
   const totalRoutes = activeCTs.reduce((s, ct) => s + (ct.rotas || 0), 0);
   const totalIDs    = importResult?.sent || 0;
+  const lhTrips     = Object.entries(templateData.lhTrips || {}).sort((a, b) => b[1] - a[1]);
   const backlog     = templateData.backlogTotal || 0;
   const comerciais  = templateData.comerciaisRemovidos || [];
-  const erros       = importResult?.pedidosComErro || [];
+  const erros       = (importResult?.pedidosComErro || []);
   const comByType   = comerciais.reduce((a, r) => { a[r.tipo] = (a[r.tipo]||0)+1; return a; }, {});
-  const sprGeral    = totalRoutes > 0 ? Math.round(totalIDs / totalRoutes) : 0;
 
-  const typeColor = { MOTO: '#EE4D2D', PASSEIO: '#1E3A8A', FIORINO: '#D97706' };
-  const typeLabel = { MOTO: 'Moto', PASSEIO: 'Passeio', FIORINO: 'Volumoso' };
+  const typeColor = { MOTO: '#EE4D2D', PASSEIO: '#2563EB', FIORINO: '#D97706' };
   const typeBg    = { MOTO: '#FFF1EE', PASSEIO: '#EFF6FF', FIORINO: '#FFFBEB' };
+  const typeLabel = { MOTO: 'Moto', PASSEIO: 'Passeio', FIORINO: 'Volumoso' };
 
-  // ── SVG BAR CHART helper ──────────────────────────────
-  function svgBar(items, opts = {}) {
-    const W = opts.width || 420, H = opts.barH || 140, PAD = 48, GAP = opts.gap || 14;
-    const n = items.length;
-    if (!n) return '<div style="color:#a1a1aa;font-size:11px;text-align:center;padding:20px;">Sem dados</div>';
-    const barW = Math.max(24, Math.min(60, (W - PAD * 2 - GAP * (n - 1)) / n));
-    const svgW = PAD * 2 + n * barW + (n - 1) * GAP;
-    const maxV = Math.max(...items.map(d => d.value), 1);
-    const bars = items.map((d, i) => {
-      const x = PAD + i * (barW + GAP);
-      const bh = Math.max(4, (d.value / maxV) * H);
-      const y = H - bh + 10;
-      const lbl = d.label.length > 10 ? d.label.slice(0, 10) + '…' : d.label;
-      return `<rect x="${x}" y="${y}" width="${barW}" height="${bh}" fill="${d.color}" rx="3" opacity="0.92"/>
-        <text x="${x + barW/2}" y="${y - 5}" text-anchor="middle" font-size="11" font-weight="700" fill="${d.color}">${d.value.toLocaleString('pt-BR')}</text>
-        <text x="${x + barW/2}" y="${H + 26}" text-anchor="middle" font-size="10" fill="#71717a">${lbl}</text>`;
-    });
-    return `<svg viewBox="0 0 ${svgW} ${H + 40}" width="100%" style="overflow:visible;">${bars.join('')}</svg>`;
-  }
-
-  // ── Chart data ──────────────────────────────────────
-  const clusterChart = activeCTs
-    .slice()
-    .sort((a, b) => b.ids.length - a.ids.length)
-    .slice(0, 12)
-    .map(ct => ({ label: ct.cluster.replace(/^\d+\.\s*/, ''), value: ct.ids.length, color: '#EE4D2D' }));
-
-  const typeGroups = activeCTs.reduce((a, ct) => {
-    if (!a[ct.type]) a[ct.type] = { routes: 0, ids: 0 };
-    a[ct.type].routes += ct.rotas || 0;
-    a[ct.type].ids += ct.ids.length;
-    return a;
-  }, {});
-  const routesChart = Object.entries(typeGroups).map(([t, v]) => ({ label: typeLabel[t] || t, value: v.routes, color: typeColor[t] || '#888' }));
-
-  // ── TABLE rows ──────────────────────────────────────
   const clusterRows = activeCTs.map((ct, i) => `
     <tr>
-      <td style="color:#a1a1aa;font-size:11px;">${i+1}</td>
+      <td>${i + 1}</td>
       <td style="font-weight:600;">${ct.cluster}</td>
-      <td><span style="background:${typeBg[ct.type]||'#f5f5f5'};color:${typeColor[ct.type]||'#333'};padding:1px 8px;border-radius:20px;font-size:10px;font-weight:700;">${typeLabel[ct.type]||ct.type}</span></td>
+      <td><span style="background:${typeBg[ct.type]||'#f5f5f5'};color:${typeColor[ct.type]||'#333'};padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;">${typeLabel[ct.type]||ct.type}</span></td>
       <td class="num">${ct.ids.length.toLocaleString('pt-BR')}</td>
       <td class="num">${ct.rotas}</td>
       <td class="num">${ct.spr}</td>
-      <td style="font-family:monospace;font-size:10px;color:#a1a1aa;">${ct.ctId||'—'}</td>
+      <td style="font-size:11px;color:#71717a;font-family:monospace;">${ct.ctId || '—'}</td>
     </tr>`).join('');
 
   const baixoRows = baixoADO.length
-    ? baixoADO.map(ct => `<tr><td style="font-weight:600;">${ct.cluster}</td><td class="num">${ct.ids.length}</td></tr>`).join('')
-    : `<tr><td colspan="2" style="text-align:center;color:#a1a1aa;padding:10px;font-size:11px;">Nenhum</td></tr>`;
+    ? baixoADO.map(ct => `
+    <tr>
+      <td style="font-weight:600;">${ct.cluster}</td>
+      <td class="num">${ct.ids.length}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="2" style="text-align:center;color:#a1a1aa;padding:12px 0;font-size:11px;">Nenhum cluster com Baixo ADO</td></tr>`;
+
+  const lhRows = lhTrips.length
+    ? lhTrips.map(([trip, count], i) => `
+    <tr>
+      <td style="color:#a1a1aa;font-size:11px;">${i + 1}</td>
+      <td style="font-family:monospace;font-size:12px;font-weight:600;">${trip}</td>
+      <td class="num">${count.toLocaleString('pt-BR')}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="3" style="text-align:center;color:#a1a1aa;padding:12px 0;font-size:11px;">Nenhuma LH identificada</td></tr>`;
 
   const comRows = comerciais.length
-    ? Object.entries(comByType).map(([t, n]) => `<tr><td style="font-weight:600;">${t}</td><td class="num">${n}</td></tr>`).join('')
-    : `<tr><td colspan="2" style="text-align:center;color:#a1a1aa;padding:10px;font-size:11px;">Nenhum</td></tr>`;
+    ? Object.entries(comByType).map(([tipo, count]) => `
+    <tr>
+      <td style="font-weight:600;">${tipo}</td>
+      <td class="num">${count}</td>
+    </tr>`).join('')
+    : `<tr><td colspan="2" style="text-align:center;color:#a1a1aa;padding:12px 0;font-size:11px;">Nenhum pedido removido</td></tr>`;
 
-  const erroRows = erros.length
-    ? erros.slice(0,100).map(r => `<tr><td style="font-family:monospace;font-size:11px;">${r.id}</td><td>${r.cluster}</td><td style="font-size:11px;color:#a1a1aa;">${r.error}</td></tr>`).join('')
-    : '';
+  const erroRows = erros.slice(0, 200).map(r => `
+    <tr>
+      <td style="font-family:monospace;font-size:11px;">${r.id}</td>
+      <td>${r.cluster}</td>
+      <td style="font-size:11px;color:#71717a;">${r.error}</td>
+    </tr>`).join('');
 
-  const card = (val, lbl, color = '#18181B') =>
-    `<div class="kcard"><div class="kval" style="color:${color};">${typeof val==='number'?val.toLocaleString('pt-BR'):val}</div><div class="klbl">${lbl}</div></div>`;
+  const card = (icon, value, label, color='#18181b') =>
+    `<div class="card"><div class="card-icon">${icon}</div><div class="card-val" style="color:${color};">${typeof value === 'number' ? value.toLocaleString('pt-BR') : value}</div><div class="card-label">${label}</div></div>`;
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Relatório — ${station}</title>
+<title>Relatório de Execução — ${station}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#fff;color:#18181B;font-size:13px;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F0F0F4;color:#18181B;font-size:13px;line-height:1.5;min-width:900px;}
 
-/* HEADER */
-.hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:3px solid #EE4D2D;background:#fff;}
-.hdr-brand{display:flex;align-items:center;gap:10px;}
-.hdr-logo{width:36px;height:36px;background:#EE4D2D;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;}
-.hdr-name{font-size:16px;font-weight:800;color:#18181B;letter-spacing:-0.3px;}
-.hdr-sub{font-size:10px;color:#71717a;}
-.hdr-title{font-size:17px;font-weight:800;color:#18181B;text-align:center;letter-spacing:-0.3px;}
-.hdr-actions{display:flex;gap:8px;}
-.btn-hdr{border:none;border-radius:7px;padding:7px 14px;font-size:11px;font-weight:700;cursor:pointer;}
+/* ── HEADER ── */
+.top-bar{background:#fff;border-bottom:1px solid #E4E4EA;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-logo{width:38px;height:38px;background:#EE4D2D;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 2px 8px rgba(238,77,45,0.25);}
+.brand-title{font-size:17px;font-weight:800;letter-spacing:-0.4px;}
+.brand-sub{font-size:11px;color:#71717a;}
+.top-actions{display:flex;gap:8px;}
+.btn-action{border:none;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:opacity .15s;}
 .btn-print{background:#EE4D2D;color:#fff;}
 .btn-share{background:#F0F0F4;color:#52525b;border:1px solid #D4D4DC;}
+.btn-action:hover{opacity:.85;}
 
-/* KPIS */
-.kpi-row{display:flex;border-bottom:2px solid #e5e5e5;}
-.kcard{flex:1;text-align:center;padding:14px 8px;border-right:1px solid #e5e5e5;}
-.kcard:last-child{border-right:none;}
-.kval{font-size:26px;font-weight:800;line-height:1;letter-spacing:-1px;}
-.klbl{font-size:9px;font-weight:600;color:#a1a1aa;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;}
+/* ── META BAR ── */
+.meta-bar{background:#fff;border-bottom:1px solid #E4E4EA;padding:12px 28px;display:flex;gap:0;flex-wrap:wrap;}
+.meta-item{flex:1;min-width:120px;padding:4px 20px;border-right:1px solid #E4E4EA;}
+.meta-item:first-child{padding-left:0;}
+.meta-item:last-child{border-right:none;}
+.meta-lbl{font-size:9px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:2px;}
+.meta-val{font-size:14px;font-weight:700;color:#18181B;}
 
-/* CHARTS ROW */
-.charts-row{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #e5e5e5;}
-.chart-box{padding:16px 20px;}
-.chart-box:first-child{border-right:1px solid #e5e5e5;}
-.chart-title{font-size:12px;font-weight:700;color:#EE4D2D;text-align:center;margin-bottom:12px;text-transform:uppercase;letter-spacing:.4px;}
+/* ── LAYOUT ── */
+.page{padding:20px 28px 40px;display:flex;flex-direction:column;gap:16px;}
 
-/* TABLES */
-.tables-section{padding:0;}
-.panel{border-bottom:1px solid #e5e5e5;}
-.panel-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 20px 8px;background:#F9F9F9;border-bottom:1px solid #e5e5e5;}
-.panel-title{font-size:11px;font-weight:700;color:#18181B;text-transform:uppercase;letter-spacing:.5px;}
-.cnt{background:#EE4D2D;color:#fff;font-size:10px;font-weight:700;padding:1px 7px;border-radius:20px;}
+/* ── CARDS ── */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
+.card{background:#fff;border-radius:10px;padding:14px 10px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
+.card-icon{font-size:20px;margin-bottom:5px;}
+.card-val{font-size:22px;font-weight:800;line-height:1;}
+.card-label{font-size:9px;font-weight:600;color:#a1a1aa;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;}
+
+/* ── GRID ── */
+.main-grid{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start;}
+.right-col{display:flex;flex-direction:column;gap:16px;}
+
+/* ── PANELS ── */
+.panel{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06);overflow:hidden;}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 12px;border-bottom:2px solid #EE4D2D;}
+.panel-head-left{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;}
+.panel-head-left span{font-size:15px;}
+.count-badge{background:#F0F0F4;color:#52525b;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;}
+.panel-body{padding:14px 18px;}
+
+/* ── SEARCH ── */
+.search-wrap{padding:10px 18px 0;}
+.search-input{width:100%;padding:7px 12px;border:1px solid #D4D4DC;border-radius:8px;font-size:12px;background:#F5F5F8;color:#18181B;outline:none;}
+.search-input:focus{border-color:#EE4D2D;}
+
+/* ── TABLE ── */
 .tbl-wrap{overflow-x:auto;}
-table{width:100%;border-collapse:collapse;font-size:11px;}
-th{background:#F5F5F8;padding:7px 12px;text-align:left;font-size:9px;font-weight:700;color:#71717a;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid #e5e5e5;white-space:nowrap;cursor:pointer;}
-th:hover{background:#EBEBEF;}
-th.sort-asc::after{content:' ↑';}
-th.sort-desc::after{content:' ↓';}
-td{padding:7px 12px;border-bottom:1px solid #F0F0F4;vertical-align:middle;}
-tr:last-child td{border-bottom:none;}
-tr:hover td{background:#fafafa;}
-.num{text-align:right;font-weight:600;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead th{background:#F5F5F8;padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#71717a;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #E4E4EA;white-space:nowrap;cursor:pointer;user-select:none;}
+thead th:hover{background:#EBEBEF;color:#18181B;}
+thead th.sort-asc::after{content:' ↑';}
+thead th.sort-desc::after{content:' ↓';}
+tbody tr:hover{background:#F5F5F8;}
+td{padding:8px 12px;border-bottom:1px solid #F0F0F4;vertical-align:middle;}
+tbody tr:last-child td{border-bottom:none;}
+.num{text-align:right;font-weight:600;font-variant-numeric:tabular-nums;}
 
-/* BOTTOM PANELS (2-col) */
-.bottom-grid{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #e5e5e5;}
-.bottom-grid .panel{border-bottom:none;border-right:1px solid #e5e5e5;}
-.bottom-grid .panel:last-child{border-right:none;}
+/* ── SHARE OVERLAY ── */
+#shareOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center;}
+#shareOverlay.show{display:flex;}
+.share-box{background:#fff;border-radius:16px;padding:28px;width:480px;max-width:94vw;box-shadow:0 20px 60px rgba(0,0,0,0.25);}
+.share-title{font-size:15px;font-weight:700;margin-bottom:6px;}
+.share-sub{font-size:12px;color:#71717a;margin-bottom:18px;}
+.share-steps{display:flex;flex-direction:column;gap:10px;margin-bottom:20px;}
+.share-step{display:flex;align-items:flex-start;gap:10px;background:#F5F5F8;border-radius:8px;padding:10px 14px;}
+.step-num{width:22px;height:22px;background:#EE4D2D;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px;}
+.step-text{font-size:12px;line-height:1.5;}
+.step-text strong{color:#18181B;}
+.share-close{width:100%;background:#F0F0F4;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;color:#52525b;}
+.share-close:hover{background:#E4E4EA;}
 
-/* FOOTER */
-.rpt-footer{display:flex;justify-content:space-between;align-items:center;padding:10px 24px;background:#F9F9F9;border-top:3px solid #EE4D2D;font-size:10px;color:#71717a;flex-wrap:wrap;gap:8px;}
-.rpt-footer strong{color:#18181B;}
+/* ── FOOTER ── */
+.rpt-footer{text-align:center;font-size:10px;color:#a1a1aa;padding-top:8px;}
 
-/* SHARE OVERLAY */
-#shareOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:99;align-items:center;justify-content:center;}
-#shareOverlay.vis{display:flex;}
-.share-box{background:#fff;border-radius:14px;padding:26px;width:440px;max-width:92vw;box-shadow:0 20px 50px rgba(0,0,0,.22);}
-.share-box h3{font-size:14px;font-weight:700;margin-bottom:4px;}
-.share-box p{font-size:11px;color:#71717a;margin-bottom:16px;}
-.share-step{display:flex;gap:10px;background:#F5F5F8;border-radius:8px;padding:10px 12px;margin-bottom:8px;align-items:flex-start;}
-.step-n{width:20px;height:20px;background:#EE4D2D;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
-.share-step p{font-size:11px;color:#52525b;margin:0;line-height:1.5;}
-.share-step p strong{color:#18181B;}
-.btn-close-share{width:100%;background:#F0F0F4;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;color:#52525b;margin-top:4px;}
-.btn-close-share:hover{background:#e4e4e7;}
-
+/* ── PRINT ── */
 @media print{
-  .hdr-actions,#shareOverlay{display:none!important;}
-  body{background:#fff;}
+  body{background:#fff;min-width:unset;}
+  .top-actions,.search-wrap,#shareOverlay{display:none!important;}
+  .main-grid{grid-template-columns:1fr 300px;}
+  .panel{box-shadow:none;border:1px solid #e4e4ea;break-inside:avoid;}
+  .page{padding:12px;}
 }
 </style>
 </head>
 <body>
 
-<div id="shareOverlay">
+<!-- SHARE OVERLAY -->
+<div id="shareOverlay" style="display:none;">
   <div class="share-box">
-    <h3>📤 Compartilhar Relatório</h3>
-    <p>Escolha como salvar e enviar no grupo:</p>
-    <div class="share-step"><div class="step-n">1</div><p><strong>Screenshot rápido (Win):</strong> Pressione <strong>Win + Shift + S</strong>, selecione a área — a imagem vai direto para área de transferência.</p></div>
-    <div class="share-step"><div class="step-n">2</div><p><strong>Página inteira (Chrome):</strong> F12 → menu ⋮ → <em>Capturar captura de tela de página inteira</em> → salva PNG completo.</p></div>
-    <div class="share-step"><div class="step-n">3</div><p><strong>Salvar como PDF:</strong> Clique em <strong>🖨️ Imprimir</strong> e escolha "Salvar como PDF".</p></div>
-    <button class="btn-close-share" id="btnCloseShare">Fechar</button>
+    <div class="share-title">📤 Compartilhar Relatório</div>
+    <div class="share-sub">Siga os passos para salvar e enviar no grupo:</div>
+    <div class="share-steps">
+      <div class="share-step">
+        <div class="step-num">1</div>
+        <div class="step-text"><strong>Windows:</strong> Pressione <strong>Win + Shift + S</strong> e selecione a área do relatório. A imagem vai para a área de transferência e você pode colar direto no grupo.</div>
+      </div>
+      <div class="share-step">
+        <div class="step-num">2</div>
+        <div class="step-text"><strong>Chrome:</strong> Aperte <strong>F12</strong> → menu ⋮ → <em>Capturar captura de tela de página inteira</em> para salvar o relatório completo como PNG.</div>
+      </div>
+      <div class="share-step">
+        <div class="step-num">3</div>
+        <div class="step-text"><strong>Imprimir como PDF:</strong> Clique em <strong>🖨️ Imprimir</strong> e escolha "Salvar como PDF" para enviar em PDF.</div>
+      </div>
+    </div>
+    <button class="share-close" id="btnCloseShare">Fechar</button>
   </div>
 </div>
 
 <!-- HEADER -->
-<div class="hdr">
-  <div class="hdr-brand">
-    <div class="hdr-logo">🚀</div>
-    <div><div class="hdr-name">SPX Auto Router</div><div class="hdr-sub">Routing Tower</div></div>
+<div class="top-bar">
+  <div class="brand">
+    <div class="brand-logo">🚀</div>
+    <div>
+      <div class="brand-title">Relatório de Execução</div>
+      <div class="brand-sub">SPX Auto Router — Routing Tower</div>
+    </div>
   </div>
-  <div class="hdr-title">${station} &nbsp;·&nbsp; ${shiftLabel} &nbsp;·&nbsp; ${dateFormatted}</div>
-  <div class="hdr-actions">
-    <button class="btn-hdr btn-share" id="btnShare">📤 Compartilhar</button>
-    <button class="btn-hdr btn-print" id="btnPrint">🖨️ Imprimir / PDF</button>
-  </div>
-</div>
-
-<!-- KPI CARDS -->
-<div class="kpi-row">
-  ${card(totalIDs, 'Total Importado', '#EE4D2D')}
-  ${card(importResult?.created ?? 0, 'CTs Criadas', '#1E3A8A')}
-  ${card(calcResult?.successCount ?? 0, 'Calculados', '#16A34A')}
-  ${card(totalRoutes, 'Total Rotas', '#18181B')}
-  ${card(sprGeral, 'SPR Geral', '#7C3AED')}
-  ${card(backlog, 'Backlog', '#D97706')}
-  ${card(baixoADO.length, 'Baixo ADO', '#DC2626')}
-  ${card(comerciais.length, 'Comerciais', '#52525b')}
-</div>
-
-<!-- CHARTS -->
-<div class="charts-row">
-  <div class="chart-box">
-    <div class="chart-title">Pedidos por Cluster</div>
-    ${svgBar(clusterChart, { width: 500, barH: 130, gap: 8 })}
-  </div>
-  <div class="chart-box">
-    <div class="chart-title">Rotas por Tipo de Veículo</div>
-    ${svgBar(routesChart, { width: 300, barH: 130, gap: 30 })}
+  <div class="top-actions">
+    <button class="btn-action btn-share" id="btnShare">📤 Compartilhar</button>
+    <button class="btn-action btn-print" id="btnPrint">🖨️ Imprimir / PDF</button>
   </div>
 </div>
 
-<!-- CLUSTERS TABLE -->
-<div class="panel">
-  <div class="panel-hdr">
-    <span class="panel-title">Clusters Roteirizados</span>
-    <span class="cnt">${activeCTs.length}</span>
-  </div>
-  <div class="tbl-wrap">
-    <table id="tblClusters">
-      <thead><tr>
-        <th data-sort="0">#</th>
-        <th data-sort="1">Cluster</th>
-        <th data-sort="2">Tipo</th>
-        <th data-sort="3" style="text-align:right;">Pedidos</th>
-        <th data-sort="4" style="text-align:right;">Rotas</th>
-        <th data-sort="5" style="text-align:right;">SPR</th>
-        <th>CT ID</th>
-      </tr></thead>
-      <tbody>${clusterRows}</tbody>
-    </table>
-  </div>
+<!-- META BAR -->
+<div class="meta-bar">
+  <div class="meta-item"><span class="meta-lbl">Estação</span><span class="meta-val">${station}</span></div>
+  <div class="meta-item"><span class="meta-lbl">Ciclo</span><span class="meta-val">${shiftLabel}</span></div>
+  <div class="meta-item"><span class="meta-lbl">Data de Expedição</span><span class="meta-val">${dateFormatted}</span></div>
+  <div class="meta-item"><span class="meta-lbl">CTs Calculadas</span><span class="meta-val">${calcResult?.successCount ?? importResult?.created ?? 0}</span></div>
+  <div class="meta-item"><span class="meta-lbl">Gerado em</span><span class="meta-val" style="font-size:12px;font-weight:600;">${now}</span></div>
 </div>
 
-<!-- BOTTOM: Baixo ADO + Comerciais -->
-<div class="bottom-grid">
-  <div class="panel">
-    <div class="panel-hdr"><span class="panel-title">Baixo ADO</span><span class="cnt">${baixoADO.length}</span></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Cluster</th><th style="text-align:right;">IDs</th></tr></thead><tbody>${baixoRows}</tbody></table></div>
-  </div>
-  <div class="panel">
-    <div class="panel-hdr"><span class="panel-title">Comerciais Removidos</span><span class="cnt">${comerciais.length}</span></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Tipo</th><th style="text-align:right;">Qtd</th></tr></thead><tbody>${comRows}</tbody></table></div>
-  </div>
-</div>
+<div class="page">
 
-${erros.length > 0 ? `
-<div class="panel">
-  <div class="panel-hdr" style="border-color:#DC2626;"><span class="panel-title" style="color:#DC2626;">Erros de Importação</span><span class="cnt">${erros.length}</span></div>
-  <div class="tbl-wrap"><table><thead><tr><th>Shipment ID</th><th>Cluster</th><th>Erro</th></tr></thead><tbody>${erroRows}</tbody></table></div>
-</div>` : ''}
+  <!-- CARDS -->
+  <div class="cards">
+    ${card('📦', totalIDs, 'Pedidos Importados', '#EE4D2D')}
+    ${card('🗂️', importResult?.created ?? 0, 'CTs Criadas', '#2563EB')}
+    ${card('✅', calcResult?.successCount ?? 0, 'Calculados', '#16A34A')}
+    ${card('🛣️', totalRoutes, 'Rotas Totais', '#18181B')}
+    ${card('🚚', lhTrips.length, 'LHs', '#7C3AED')}
+    ${card('⏪', backlog, 'Backlog', '#D97706')}
+    ${card('🏢', comerciais.length, 'Comerciais Retirados', '#52525b')}
+    ${card('❌', erros.length, 'Erros Import.', erros.length > 0 ? '#DC2626' : '#a1a1aa')}
+  </div>
 
-<!-- FOOTER -->
-<div class="rpt-footer">
-  <span><strong>Data roteirização:</strong> ${dateFormatted}</span>
-  <span><strong>Gerado em:</strong> ${now}</span>
-  <span>SPX Auto Router — Routing Tower</span>
+  <!-- MAIN GRID -->
+  <div class="main-grid">
+
+    <!-- LEFT: Clusters -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-left"><span>📋</span> Clusters Roteirizados <span class="count-badge">${activeCTs.length}</span></div>
+        </div>
+        <div class="search-wrap">
+          <input class="search-input" id="searchCluster" placeholder="Buscar cluster...">
+        </div>
+        <div class="tbl-wrap">
+          <table id="clusterTable">
+            <thead><tr>
+              <th data-sort="0" style="width:36px;">#</th>
+              <th data-sort="1">Cluster</th>
+              <th data-sort="2">Tipo</th>
+              <th data-sort="3" style="text-align:right;">Pedidos</th>
+              <th data-sort="4" style="text-align:right;">Rotas</th>
+              <th data-sort="5" style="text-align:right;">SPR</th>
+              <th>CT ID</th>
+            </tr></thead>
+            <tbody>${clusterRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      ${erros.length > 0 ? `
+      <div class="panel">
+        <div class="panel-head" style="border-color:#DC2626;">
+          <div class="panel-head-left"><span>❌</span> Erros de Importação <span class="count-badge">${erros.length}</span></div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Shipment ID</th><th>Cluster</th><th>Erro</th></tr></thead>
+            <tbody>${erroRows}</tbody>
+          </table>
+        </div>
+      </div>` : ''}
+    </div>
+
+    <!-- RIGHT SIDEBAR -->
+    <div class="right-col">
+
+      <!-- LH Trips -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-left"><span>🚚</span> LH Trips <span class="count-badge">${lhTrips.length}</span></div>
+        </div>
+        <div class="tbl-wrap">
+          <table id="lhTable">
+            <thead><tr>
+              <th data-sort="0" style="width:28px;">#</th>
+              <th data-sort="1">LH Trip</th>
+              <th data-sort="2" style="text-align:right;">Pedidos</th>
+            </tr></thead>
+            <tbody>${lhRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Baixo ADO -->
+      <div class="panel">
+        <div class="panel-head" style="border-color:#D97706;">
+          <div class="panel-head-left"><span>⚠️</span> Baixo ADO <span class="count-badge">${baixoADO.length}</span></div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Cluster</th><th style="text-align:right;">IDs</th></tr></thead>
+            <tbody>${baixoRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Comerciais -->
+      <div class="panel">
+        <div class="panel-head" style="border-color:#71717a;">
+          <div class="panel-head-left"><span>🏢</span> Comerciais Removidos <span class="count-badge">${comerciais.length}</span></div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Tipo</th><th style="text-align:right;">Qtd</th></tr></thead>
+            <tbody>${comRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /right-col -->
+  </div><!-- /main-grid -->
+
+  <div class="rpt-footer">Relatório gerado automaticamente pelo SPX Auto Router &nbsp;·&nbsp; ${now}</div>
 </div>
 
 <script>
-// Sort tables
 function sortTable(id, col) {
-  var tbl = document.getElementById(id);
-  if (!tbl) return;
-  var tbody = tbl.querySelector('tbody');
-  var ths = tbl.querySelectorAll('thead th');
-  var rows = Array.from(tbody.querySelectorAll('tr'));
-  var asc = ths[col] && ths[col].classList.contains('sort-asc');
-  ths.forEach(function(th){ th.classList.remove('sort-asc','sort-desc'); });
-  if (ths[col]) ths[col].classList.add(asc ? 'sort-desc' : 'sort-asc');
-  rows.sort(function(a, b) {
-    var va = (a.cells[col] && a.cells[col].innerText.trim()) || '';
-    var vb = (b.cells[col] && b.cells[col].innerText.trim()) || '';
-    var na = parseFloat(va.replace(/\./g,'').replace(',','.'));
-    var nb = parseFloat(vb.replace(/\./g,'').replace(',','.'));
+  const tbl = document.getElementById(id);
+  const tbody = tbl.querySelector('tbody');
+  const ths = tbl.querySelectorAll('thead th');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const asc = ths[col].classList.contains('sort-asc');
+  ths.forEach(th => th.classList.remove('sort-asc','sort-desc'));
+  ths[col].classList.add(asc ? 'sort-desc' : 'sort-asc');
+  rows.sort((a, b) => {
+    const va = a.cells[col]?.innerText.trim() || '';
+    const vb = b.cells[col]?.innerText.trim() || '';
+    const na = parseFloat(va.replace(/\./g,'').replace(',','.'));
+    const nb = parseFloat(vb.replace(/\./g,'').replace(',','.'));
     if (!isNaN(na) && !isNaN(nb)) return asc ? nb - na : na - nb;
-    return asc ? vb.localeCompare(vb,'pt-BR') : va.localeCompare(vb,'pt-BR');
+    return asc ? vb.localeCompare(va,'pt-BR') : va.localeCompare(vb,'pt-BR');
   });
-  rows.forEach(function(r){ tbody.appendChild(r); });
+  rows.forEach(r => tbody.appendChild(r));
+}
+function filterTable(id, query, col) {
+  const q = query.toLowerCase();
+  document.getElementById(id).querySelectorAll('tbody tr').forEach(tr => {
+    tr.style.display = (tr.cells[col]?.innerText.toLowerCase()||'').includes(q) ? '' : 'none';
+  });
 }
 
-// Wire up buttons — runs immediately since script is at end of body
-(function() {
-  var btnPrint = document.getElementById('btnPrint');
-  var btnShare = document.getElementById('btnShare');
-  var btnClose = document.getElementById('btnCloseShare');
-  var overlay  = document.getElementById('shareOverlay');
+document.addEventListener('DOMContentLoaded', function() {
+  // Botões de ação
+  document.getElementById('btnPrint').addEventListener('click', function() { window.print(); });
+  document.getElementById('btnShare').addEventListener('click', function() {
+    document.getElementById('shareOverlay').style.display = 'flex';
+  });
+  document.getElementById('btnCloseShare').addEventListener('click', function() {
+    document.getElementById('shareOverlay').style.display = 'none';
+  });
+  document.getElementById('shareOverlay').addEventListener('click', function(e) {
+    if (e.target === this) this.style.display = 'none';
+  });
 
-  if (btnPrint) btnPrint.addEventListener('click', function() { window.print(); });
-  if (btnShare) btnShare.addEventListener('click', function() { overlay.classList.add('vis'); });
-  if (btnClose) btnClose.addEventListener('click', function() { overlay.classList.remove('vis'); });
-  if (overlay)  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.classList.remove('vis'); });
+  // Busca de cluster
+  var searchEl = document.getElementById('searchCluster');
+  if (searchEl) searchEl.addEventListener('input', function() {
+    filterTable('clusterTable', this.value, 1);
+  });
 
-  // Table sort on header click
+  // Ordenação das tabelas via header click
   document.querySelectorAll('thead th[data-sort]').forEach(function(th) {
     th.addEventListener('click', function() {
-      var tbl = th.closest('table');
-      if (tbl && tbl.id) sortTable(tbl.id, parseInt(th.dataset.sort));
+      sortTable(th.closest('table').id, parseInt(th.dataset.sort));
     });
   });
-})();
+});
 </script>
 </body>
 </html>`;
