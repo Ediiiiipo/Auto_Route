@@ -944,7 +944,6 @@ function generateReport(ctList, templateData, importResult, calcResult, config) 
   const now = new Date().toLocaleString('pt-BR');
   const station = stationNameCache;
   const shiftLabel = config.shift;
-  const dateLabel = config.date === 'tomorrow' ? 'Amanhã' : 'Hoje';
   const dateFormatted = config.date === 'tomorrow'
     ? new Date(Date.now() + 86400000).toLocaleDateString('pt-BR')
     : new Date().toLocaleDateString('pt-BR');
@@ -957,8 +956,7 @@ function generateReport(ctList, templateData, importResult, calcResult, config) 
   const backlog     = templateData.backlogTotal || 0;
   const comerciais  = templateData.comerciaisRemovidos || [];
   const erros       = (importResult?.pedidosComErro || []);
-
-  const comByType = comerciais.reduce((a, r) => { a[r.tipo] = (a[r.tipo]||0)+1; return a; }, {});
+  const comByType   = comerciais.reduce((a, r) => { a[r.tipo] = (a[r.tipo]||0)+1; return a; }, {});
 
   const typeColor = { MOTO: '#EE4D2D', PASSEIO: '#2563EB', FIORINO: '#D97706' };
   const typeBg    = { MOTO: '#FFF1EE', PASSEIO: '#EFF6FF', FIORINO: '#FFFBEB' };
@@ -975,39 +973,40 @@ function generateReport(ctList, templateData, importResult, calcResult, config) 
       <td style="font-size:11px;color:#71717a;font-family:monospace;">${ct.ctId || '—'}</td>
     </tr>`).join('');
 
-  const baixoRows = baixoADO.length ? baixoADO.map(ct => `
+  const baixoRows = baixoADO.length
+    ? baixoADO.map(ct => `
     <tr>
       <td style="font-weight:600;">${ct.cluster}</td>
       <td class="num">${ct.ids.length}</td>
-      <td><span style="background:#FEF2F2;color:#DC2626;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;">Baixo ADO</span></td>
     </tr>`).join('')
-    : `<tr><td colspan="3" style="text-align:center;color:#a1a1aa;padding:16px;">Nenhum cluster com Baixo ADO</td></tr>`;
+    : `<tr><td colspan="2" style="text-align:center;color:#a1a1aa;padding:12px 0;font-size:11px;">Nenhum cluster com Baixo ADO</td></tr>`;
 
-  const lhRows = lhTrips.length ? lhTrips.map(([trip, count], i) => `
+  const lhRows = lhTrips.length
+    ? lhTrips.map(([trip, count], i) => `
     <tr>
-      <td>${i + 1}</td>
-      <td style="font-family:monospace;font-weight:600;">${trip}</td>
+      <td style="color:#a1a1aa;font-size:11px;">${i + 1}</td>
+      <td style="font-family:monospace;font-size:12px;font-weight:600;">${trip}</td>
       <td class="num">${count.toLocaleString('pt-BR')}</td>
     </tr>`).join('')
-    : `<tr><td colspan="3" style="text-align:center;color:#a1a1aa;padding:16px;">Nenhuma LH identificada</td></tr>`;
+    : `<tr><td colspan="3" style="text-align:center;color:#a1a1aa;padding:12px 0;font-size:11px;">Nenhuma LH identificada</td></tr>`;
 
-  const comRows = comerciais.length ? Object.entries(comByType).map(([tipo, count]) => `
+  const comRows = comerciais.length
+    ? Object.entries(comByType).map(([tipo, count]) => `
     <tr>
       <td style="font-weight:600;">${tipo}</td>
       <td class="num">${count}</td>
     </tr>`).join('')
-    : `<tr><td colspan="2" style="text-align:center;color:#a1a1aa;padding:16px;">Nenhum pedido comercial removido</td></tr>`;
+    : `<tr><td colspan="2" style="text-align:center;color:#a1a1aa;padding:12px 0;font-size:11px;">Nenhum pedido removido</td></tr>`;
 
-  const erroRows = erros.length ? erros.slice(0, 200).map(r => `
+  const erroRows = erros.slice(0, 200).map(r => `
     <tr>
       <td style="font-family:monospace;font-size:11px;">${r.id}</td>
       <td>${r.cluster}</td>
-      <td><span style="background:#FFF1EE;color:#EE4D2D;padding:2px 8px;border-radius:20px;font-size:10px;">${typeLabel[r.typeLabel?.includes('Moto')?'MOTO':r.typeLabel?.includes('Vol')?'FIORINO':'PASSEIO']||'—'}</span></td>
       <td style="font-size:11px;color:#71717a;">${r.error}</td>
-    </tr>`).join('') : '';
+    </tr>`).join('');
 
   const card = (icon, value, label, color='#18181b') =>
-    `<div class="card"><div class="card-icon">${icon}</div><div class="card-val" style="color:${color};">${value}</div><div class="card-label">${label}</div></div>`;
+    `<div class="card"><div class="card-icon">${icon}</div><div class="card-val" style="color:${color};">${typeof value === 'number' ? value.toLocaleString('pt-BR') : value}</div><div class="card-label">${label}</div></div>`;
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
@@ -1016,179 +1015,250 @@ function generateReport(ctList, templateData, importResult, calcResult, config) 
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Relatório de Execução — ${station}</title>
 <style>
-  *{margin:0;padding:0;box-sizing:border-box;}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F0F0F4;color:#18181B;font-size:13px;line-height:1.5;}
-  a{color:inherit;text-decoration:none;}
-  .container{max-width:960px;margin:0 auto;padding:24px 20px 40px;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F0F0F4;color:#18181B;font-size:13px;line-height:1.5;min-width:900px;}
 
-  /* HEADER */
-  .report-header{background:#fff;border-radius:12px;padding:20px 24px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 1px 4px rgba(0,0,0,0.07);flex-wrap:wrap;gap:12px;}
-  .brand{display:flex;align-items:center;gap:12px;}
-  .brand-logo{width:40px;height:40px;background:#EE4D2D;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 3px 10px rgba(238,77,45,0.25);}
-  .brand-name{font-size:18px;font-weight:800;letter-spacing:-0.4px;}
-  .brand-sub{font-size:11px;color:#71717a;margin-top:1px;}
-  .btn-print{background:#EE4D2D;color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:12px;font-weight:700;cursor:pointer;transition:opacity .15s;}
-  .btn-print:hover{opacity:.88;}
+/* ── HEADER ── */
+.top-bar{background:#fff;border-bottom:1px solid #E4E4EA;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-logo{width:38px;height:38px;background:#EE4D2D;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 2px 8px rgba(238,77,45,0.25);}
+.brand-title{font-size:17px;font-weight:800;letter-spacing:-0.4px;}
+.brand-sub{font-size:11px;color:#71717a;}
+.top-actions{display:flex;gap:8px;}
+.btn-action{border:none;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:opacity .15s;}
+.btn-print{background:#EE4D2D;color:#fff;}
+.btn-share{background:#F0F0F4;color:#52525b;border:1px solid #D4D4DC;}
+.btn-action:hover{opacity:.85;}
 
-  /* META BAR */
-  .meta-bar{background:#fff;border-radius:12px;padding:16px 24px;margin-bottom:16px;display:flex;gap:0;box-shadow:0 1px 4px rgba(0,0,0,0.07);flex-wrap:wrap;}
-  .meta-item{flex:1;min-width:130px;padding:0 20px;border-right:1px solid #e4e4ea;}
-  .meta-item:first-child{padding-left:0;}
-  .meta-item:last-child{border-right:none;}
-  .meta-label{font-size:9px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:3px;}
-  .meta-value{font-size:15px;font-weight:700;color:#18181B;}
+/* ── META BAR ── */
+.meta-bar{background:#fff;border-bottom:1px solid #E4E4EA;padding:12px 28px;display:flex;gap:0;flex-wrap:wrap;}
+.meta-item{flex:1;min-width:120px;padding:4px 20px;border-right:1px solid #E4E4EA;}
+.meta-item:first-child{padding-left:0;}
+.meta-item:last-child{border-right:none;}
+.meta-lbl{font-size:9px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:2px;}
+.meta-val{font-size:14px;font-weight:700;color:#18181B;}
 
-  /* CARDS */
-  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:20px;}
-  .card{background:#fff;border-radius:10px;padding:16px 12px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
-  .card-icon{font-size:22px;margin-bottom:6px;}
-  .card-val{font-size:24px;font-weight:800;line-height:1;}
-  .card-label{font-size:9px;font-weight:600;color:#a1a1aa;text-transform:uppercase;letter-spacing:.6px;margin-top:4px;}
+/* ── LAYOUT ── */
+.page{padding:20px 28px 40px;display:flex;flex-direction:column;gap:16px;}
 
-  /* SECTIONS */
-  .section{background:#fff;border-radius:12px;padding:20px 24px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,0.06);}
-  .section-title{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#18181B;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #EE4D2D;}
-  .section-title span{font-size:16px;}
-  .badge-count{background:#F0F0F4;color:#52525b;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;margin-left:4px;}
+/* ── CARDS ── */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
+.card{background:#fff;border-radius:10px;padding:14px 10px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
+.card-icon{font-size:20px;margin-bottom:5px;}
+.card-val{font-size:22px;font-weight:800;line-height:1;}
+.card-label{font-size:9px;font-weight:600;color:#a1a1aa;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;}
 
-  /* TABLE */
-  .tbl-wrap{overflow-x:auto;}
-  table{width:100%;border-collapse:collapse;font-size:12px;}
-  thead th{background:#F5F5F8;padding:9px 12px;text-align:left;font-size:10px;font-weight:700;color:#71717a;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #e4e4ea;white-space:nowrap;cursor:pointer;user-select:none;}
-  thead th:hover{background:#EBEBEF;color:#18181B;}
-  thead th.sort-asc::after{content:' ↑';}
-  thead th.sort-desc::after{content:' ↓';}
-  tbody tr{transition:background .1s;}
-  tbody tr:hover{background:#F5F5F8;}
-  td{padding:9px 12px;border-bottom:1px solid #F0F0F4;vertical-align:middle;}
-  tbody tr:last-child td{border-bottom:none;}
-  .num{text-align:right;font-weight:600;font-variant-numeric:tabular-nums;}
+/* ── GRID ── */
+.main-grid{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start;}
+.right-col{display:flex;flex-direction:column;gap:16px;}
 
-  /* SEARCH */
-  .search-bar{display:flex;gap:8px;margin-bottom:12px;}
-  .search-input{flex:1;padding:7px 12px;border:1px solid #D4D4DC;border-radius:8px;font-size:12px;background:#F5F5F8;color:#18181B;outline:none;}
-  .search-input:focus{border-color:#EE4D2D;}
+/* ── PANELS ── */
+.panel{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06);overflow:hidden;}
+.panel-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 12px;border-bottom:2px solid #EE4D2D;}
+.panel-head-left{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;}
+.panel-head-left span{font-size:15px;}
+.count-badge{background:#F0F0F4;color:#52525b;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;}
+.panel-body{padding:14px 18px;}
 
-  /* FOOTER */
-  .report-footer{text-align:center;font-size:10px;color:#a1a1aa;margin-top:24px;}
+/* ── SEARCH ── */
+.search-wrap{padding:10px 18px 0;}
+.search-input{width:100%;padding:7px 12px;border:1px solid #D4D4DC;border-radius:8px;font-size:12px;background:#F5F5F8;color:#18181B;outline:none;}
+.search-input:focus{border-color:#EE4D2D;}
 
-  /* PRINT */
-  @media print{
-    body{background:#fff;}
-    .container{max-width:100%;padding:12px;}
-    .btn-print{display:none;}
-    .section{box-shadow:none;border:1px solid #e4e4ea;}
-  }
+/* ── TABLE ── */
+.tbl-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:12px;}
+thead th{background:#F5F5F8;padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#71717a;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #E4E4EA;white-space:nowrap;cursor:pointer;user-select:none;}
+thead th:hover{background:#EBEBEF;color:#18181B;}
+thead th.sort-asc::after{content:' ↑';}
+thead th.sort-desc::after{content:' ↓';}
+tbody tr:hover{background:#F5F5F8;}
+td{padding:8px 12px;border-bottom:1px solid #F0F0F4;vertical-align:middle;}
+tbody tr:last-child td{border-bottom:none;}
+.num{text-align:right;font-weight:600;font-variant-numeric:tabular-nums;}
+
+/* ── SHARE OVERLAY ── */
+#shareOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center;}
+#shareOverlay.show{display:flex;}
+.share-box{background:#fff;border-radius:16px;padding:28px;width:480px;max-width:94vw;box-shadow:0 20px 60px rgba(0,0,0,0.25);}
+.share-title{font-size:15px;font-weight:700;margin-bottom:6px;}
+.share-sub{font-size:12px;color:#71717a;margin-bottom:18px;}
+.share-steps{display:flex;flex-direction:column;gap:10px;margin-bottom:20px;}
+.share-step{display:flex;align-items:flex-start;gap:10px;background:#F5F5F8;border-radius:8px;padding:10px 14px;}
+.step-num{width:22px;height:22px;background:#EE4D2D;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px;}
+.step-text{font-size:12px;line-height:1.5;}
+.step-text strong{color:#18181B;}
+.share-close{width:100%;background:#F0F0F4;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;color:#52525b;}
+.share-close:hover{background:#E4E4EA;}
+
+/* ── FOOTER ── */
+.rpt-footer{text-align:center;font-size:10px;color:#a1a1aa;padding-top:8px;}
+
+/* ── PRINT ── */
+@media print{
+  body{background:#fff;min-width:unset;}
+  .top-actions,.search-wrap,#shareOverlay{display:none!important;}
+  .main-grid{grid-template-columns:1fr 300px;}
+  .panel{box-shadow:none;border:1px solid #e4e4ea;break-inside:avoid;}
+  .page{padding:12px;}
+}
 </style>
 </head>
 <body>
-<div class="container">
 
-  <!-- HEADER -->
-  <div class="report-header">
-    <div class="brand">
-      <div class="brand-logo">🚀</div>
-      <div>
-        <div class="brand-name">Relatório de Execução</div>
-        <div class="brand-sub">SPX Auto Router — Routing Tower</div>
+<!-- SHARE OVERLAY -->
+<div id="shareOverlay">
+  <div class="share-box">
+    <div class="share-title">📤 Compartilhar Relatório</div>
+    <div class="share-sub">Siga os passos para salvar e enviar no grupo:</div>
+    <div class="share-steps">
+      <div class="share-step">
+        <div class="step-num">1</div>
+        <div class="step-text"><strong>Windows:</strong> Pressione <strong>Win + Shift + S</strong> e selecione a área do relatório. A imagem vai para a área de transferência e você pode colar direto no grupo.</div>
+      </div>
+      <div class="share-step">
+        <div class="step-num">2</div>
+        <div class="step-text"><strong>Chrome:</strong> Aperte <strong>F12</strong> → menu ⋮ → <em>Capturar captura de tela de página inteira</em> para salvar o relatório completo como PNG.</div>
+      </div>
+      <div class="share-step">
+        <div class="step-num">3</div>
+        <div class="step-text"><strong>Imprimir como PDF:</strong> Clique em <strong>🖨️ Imprimir</strong> e escolha "Salvar como PDF" para enviar em PDF.</div>
       </div>
     </div>
-    <button class="btn-print" onclick="window.print()">🖨️ Imprimir</button>
+    <button class="share-close" onclick="document.getElementById('shareOverlay').classList.remove('show')">Fechar</button>
   </div>
+</div>
 
-  <!-- META BAR -->
-  <div class="meta-bar">
-    <div class="meta-item"><span class="meta-label">Estação</span><span class="meta-value">${station}</span></div>
-    <div class="meta-item"><span class="meta-label">Ciclo</span><span class="meta-value">${shiftLabel}</span></div>
-    <div class="meta-item"><span class="meta-label">Data de Expedição</span><span class="meta-value">${dateFormatted}</span></div>
-    <div class="meta-item"><span class="meta-label">CTs Calculadas</span><span class="meta-value">${calcResult?.successCount ?? importResult?.created ?? 0}</span></div>
-    <div class="meta-item"><span class="meta-label">Gerado em</span><span class="meta-value" style="font-size:12px;">${now}</span></div>
+<!-- HEADER -->
+<div class="top-bar">
+  <div class="brand">
+    <div class="brand-logo">🚀</div>
+    <div>
+      <div class="brand-title">Relatório de Execução</div>
+      <div class="brand-sub">SPX Auto Router — Routing Tower</div>
+    </div>
   </div>
+  <div class="top-actions">
+    <button class="btn-action btn-share" onclick="document.getElementById('shareOverlay').classList.add('show')">📤 Compartilhar</button>
+    <button class="btn-action btn-print" onclick="window.print()">🖨️ Imprimir / PDF</button>
+  </div>
+</div>
+
+<!-- META BAR -->
+<div class="meta-bar">
+  <div class="meta-item"><span class="meta-lbl">Estação</span><span class="meta-val">${station}</span></div>
+  <div class="meta-item"><span class="meta-lbl">Ciclo</span><span class="meta-val">${shiftLabel}</span></div>
+  <div class="meta-item"><span class="meta-lbl">Data de Expedição</span><span class="meta-val">${dateFormatted}</span></div>
+  <div class="meta-item"><span class="meta-lbl">CTs Calculadas</span><span class="meta-val">${calcResult?.successCount ?? importResult?.created ?? 0}</span></div>
+  <div class="meta-item"><span class="meta-lbl">Gerado em</span><span class="meta-val" style="font-size:12px;font-weight:600;">${now}</span></div>
+</div>
+
+<div class="page">
 
   <!-- CARDS -->
   <div class="cards">
-    ${card('📦', totalIDs.toLocaleString('pt-BR'), 'Pedidos Importados', '#EE4D2D')}
+    ${card('📦', totalIDs, 'Pedidos Importados', '#EE4D2D')}
     ${card('🗂️', importResult?.created ?? 0, 'CTs Criadas', '#2563EB')}
     ${card('✅', calcResult?.successCount ?? 0, 'Calculados', '#16A34A')}
     ${card('🛣️', totalRoutes, 'Rotas Totais', '#18181B')}
     ${card('🚚', lhTrips.length, 'LHs', '#7C3AED')}
-    ${card('⏪', backlog.toLocaleString('pt-BR'), 'Backlog', '#D97706')}
+    ${card('⏪', backlog, 'Backlog', '#D97706')}
     ${card('🏢', comerciais.length, 'Comerciais Retirados', '#52525b')}
-    ${card('❌', erros.length, 'Erros de Import.', erros.length > 0 ? '#DC2626' : '#a1a1aa')}
+    ${card('❌', erros.length, 'Erros Import.', erros.length > 0 ? '#DC2626' : '#a1a1aa')}
   </div>
 
-  <!-- CLUSTERS ROTEIRIZADOS -->
-  <div class="section">
-    <div class="section-title"><span>📋</span> Clusters Roteirizados <span class="badge-count">${activeCTs.length}</span></div>
-    <div class="search-bar">
-      <input class="search-input" id="searchCluster" placeholder="Buscar cluster..." oninput="filterTable('clusterTable', this.value, 1)">
-    </div>
-    <div class="tbl-wrap">
-      <table id="clusterTable">
-        <thead><tr>
-          <th onclick="sortTable('clusterTable',0)">#</th>
-          <th onclick="sortTable('clusterTable',1)">Cluster</th>
-          <th onclick="sortTable('clusterTable',2)">Tipo</th>
-          <th onclick="sortTable('clusterTable',3)" style="text-align:right;">Pedidos</th>
-          <th onclick="sortTable('clusterTable',4)" style="text-align:right;">Rotas</th>
-          <th onclick="sortTable('clusterTable',5)" style="text-align:right;">SPR</th>
-          <th>CT ID</th>
-        </tr></thead>
-        <tbody>${clusterRows}</tbody>
-      </table>
-    </div>
-  </div>
+  <!-- MAIN GRID -->
+  <div class="main-grid">
 
-  <!-- BAIXO ADO -->
-  <div class="section">
-    <div class="section-title"><span>⚠️</span> Baixo ADO — Não Roteirizados <span class="badge-count">${baixoADO.length}</span></div>
-    <div class="tbl-wrap">
-      <table>
-        <thead><tr><th>Cluster</th><th style="text-align:right;">IDs Disponíveis</th><th>Status</th></tr></thead>
-        <tbody>${baixoRows}</tbody>
-      </table>
-    </div>
-  </div>
+    <!-- LEFT: Clusters -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-left"><span>📋</span> Clusters Roteirizados <span class="count-badge">${activeCTs.length}</span></div>
+        </div>
+        <div class="search-wrap">
+          <input class="search-input" placeholder="Buscar cluster..." oninput="filterTable('clusterTable',this.value,1)">
+        </div>
+        <div class="tbl-wrap">
+          <table id="clusterTable">
+            <thead><tr>
+              <th onclick="sortTable('clusterTable',0)" style="width:36px;">#</th>
+              <th onclick="sortTable('clusterTable',1)">Cluster</th>
+              <th onclick="sortTable('clusterTable',2)">Tipo</th>
+              <th onclick="sortTable('clusterTable',3)" style="text-align:right;">Pedidos</th>
+              <th onclick="sortTable('clusterTable',4)" style="text-align:right;">Rotas</th>
+              <th onclick="sortTable('clusterTable',5)" style="text-align:right;">SPR</th>
+              <th>CT ID</th>
+            </tr></thead>
+            <tbody>${clusterRows}</tbody>
+          </table>
+        </div>
+      </div>
 
-  <!-- LH TRIPS -->
-  <div class="section">
-    <div class="section-title"><span>🚚</span> LH Trips <span class="badge-count">${lhTrips.length}</span></div>
-    <div class="tbl-wrap">
-      <table id="lhTable">
-        <thead><tr>
-          <th onclick="sortTable('lhTable',0)">#</th>
-          <th onclick="sortTable('lhTable',1)">LH Trip</th>
-          <th onclick="sortTable('lhTable',2)" style="text-align:right;">Pedidos</th>
-        </tr></thead>
-        <tbody>${lhRows}</tbody>
-      </table>
+      ${erros.length > 0 ? `
+      <div class="panel">
+        <div class="panel-head" style="border-color:#DC2626;">
+          <div class="panel-head-left"><span>❌</span> Erros de Importação <span class="count-badge">${erros.length}</span></div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Shipment ID</th><th>Cluster</th><th>Erro</th></tr></thead>
+            <tbody>${erroRows}</tbody>
+          </table>
+        </div>
+      </div>` : ''}
     </div>
-  </div>
 
-  <!-- COMERCIAIS -->
-  <div class="section">
-    <div class="section-title"><span>🏢</span> Pedidos Comerciais Removidos <span class="badge-count">${comerciais.length}</span></div>
-    <div class="tbl-wrap">
-      <table>
-        <thead><tr><th>Tipo</th><th style="text-align:right;">Quantidade</th></tr></thead>
-        <tbody>${comRows}</tbody>
-      </table>
-    </div>
-  </div>
+    <!-- RIGHT SIDEBAR -->
+    <div class="right-col">
 
-  ${erros.length > 0 ? `
-  <!-- ERROS DE IMPORTAÇÃO -->
-  <div class="section">
-    <div class="section-title" style="border-color:#DC2626;"><span>❌</span> Pedidos com Erro de Importação <span class="badge-count">${erros.length}</span></div>
-    <div class="tbl-wrap">
-      <table>
-        <thead><tr><th>Shipment ID</th><th>Cluster</th><th>Tipo</th><th>Erro</th></tr></thead>
-        <tbody>${erroRows}</tbody>
-      </table>
-    </div>
-  </div>` : ''}
+      <!-- LH Trips -->
+      <div class="panel">
+        <div class="panel-head">
+          <div class="panel-head-left"><span>🚚</span> LH Trips <span class="count-badge">${lhTrips.length}</span></div>
+        </div>
+        <div class="tbl-wrap">
+          <table id="lhTable">
+            <thead><tr>
+              <th onclick="sortTable('lhTable',0)" style="width:28px;">#</th>
+              <th onclick="sortTable('lhTable',1)">LH Trip</th>
+              <th onclick="sortTable('lhTable',2)" style="text-align:right;">Pedidos</th>
+            </tr></thead>
+            <tbody>${lhRows}</tbody>
+          </table>
+        </div>
+      </div>
 
-  <div class="report-footer">Relatório gerado automaticamente pelo SPX Auto Router &nbsp;·&nbsp; ${now}</div>
+      <!-- Baixo ADO -->
+      <div class="panel">
+        <div class="panel-head" style="border-color:#D97706;">
+          <div class="panel-head-left"><span>⚠️</span> Baixo ADO <span class="count-badge">${baixoADO.length}</span></div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Cluster</th><th style="text-align:right;">IDs</th></tr></thead>
+            <tbody>${baixoRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Comerciais -->
+      <div class="panel">
+        <div class="panel-head" style="border-color:#71717a;">
+          <div class="panel-head-left"><span>🏢</span> Comerciais Removidos <span class="count-badge">${comerciais.length}</span></div>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Tipo</th><th style="text-align:right;">Qtd</th></tr></thead>
+            <tbody>${comRows}</tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /right-col -->
+  </div><!-- /main-grid -->
+
+  <div class="rpt-footer">Relatório gerado automaticamente pelo SPX Auto Router &nbsp;·&nbsp; ${now}</div>
 </div>
 
 <script>
@@ -1210,12 +1280,10 @@ function sortTable(id, col) {
   });
   rows.forEach(r => tbody.appendChild(r));
 }
-
 function filterTable(id, query, col) {
   const q = query.toLowerCase();
   document.getElementById(id).querySelectorAll('tbody tr').forEach(tr => {
-    const val = tr.cells[col]?.innerText.toLowerCase() || '';
-    tr.style.display = val.includes(q) ? '' : 'none';
+    tr.style.display = (tr.cells[col]?.innerText.toLowerCase()||'').includes(q) ? '' : 'none';
   });
 }
 </script>
