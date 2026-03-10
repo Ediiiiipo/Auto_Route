@@ -1107,7 +1107,7 @@ tbody tr:last-child td{border-bottom:none;}
 <body>
 
 <!-- SHARE OVERLAY -->
-<div id="shareOverlay">
+<div id="shareOverlay" style="display:none;">
   <div class="share-box">
     <div class="share-title">📤 Compartilhar Relatório</div>
     <div class="share-sub">Siga os passos para salvar e enviar no grupo:</div>
@@ -1125,7 +1125,7 @@ tbody tr:last-child td{border-bottom:none;}
         <div class="step-text"><strong>Imprimir como PDF:</strong> Clique em <strong>🖨️ Imprimir</strong> e escolha "Salvar como PDF" para enviar em PDF.</div>
       </div>
     </div>
-    <button class="share-close" onclick="document.getElementById('shareOverlay').classList.remove('show')">Fechar</button>
+    <button class="share-close" id="btnCloseShare">Fechar</button>
   </div>
 </div>
 
@@ -1139,8 +1139,8 @@ tbody tr:last-child td{border-bottom:none;}
     </div>
   </div>
   <div class="top-actions">
-    <button class="btn-action btn-share" onclick="document.getElementById('shareOverlay').classList.add('show')">📤 Compartilhar</button>
-    <button class="btn-action btn-print" onclick="window.print()">🖨️ Imprimir / PDF</button>
+    <button class="btn-action btn-share" id="btnShare">📤 Compartilhar</button>
+    <button class="btn-action btn-print" id="btnPrint">🖨️ Imprimir / PDF</button>
   </div>
 </div>
 
@@ -1177,17 +1177,17 @@ tbody tr:last-child td{border-bottom:none;}
           <div class="panel-head-left"><span>📋</span> Clusters Roteirizados <span class="count-badge">${activeCTs.length}</span></div>
         </div>
         <div class="search-wrap">
-          <input class="search-input" placeholder="Buscar cluster..." oninput="filterTable('clusterTable',this.value,1)">
+          <input class="search-input" id="searchCluster" placeholder="Buscar cluster...">
         </div>
         <div class="tbl-wrap">
           <table id="clusterTable">
             <thead><tr>
-              <th onclick="sortTable('clusterTable',0)" style="width:36px;">#</th>
-              <th onclick="sortTable('clusterTable',1)">Cluster</th>
-              <th onclick="sortTable('clusterTable',2)">Tipo</th>
-              <th onclick="sortTable('clusterTable',3)" style="text-align:right;">Pedidos</th>
-              <th onclick="sortTable('clusterTable',4)" style="text-align:right;">Rotas</th>
-              <th onclick="sortTable('clusterTable',5)" style="text-align:right;">SPR</th>
+              <th data-sort="0" style="width:36px;">#</th>
+              <th data-sort="1">Cluster</th>
+              <th data-sort="2">Tipo</th>
+              <th data-sort="3" style="text-align:right;">Pedidos</th>
+              <th data-sort="4" style="text-align:right;">Rotas</th>
+              <th data-sort="5" style="text-align:right;">SPR</th>
               <th>CT ID</th>
             </tr></thead>
             <tbody>${clusterRows}</tbody>
@@ -1220,9 +1220,9 @@ tbody tr:last-child td{border-bottom:none;}
         <div class="tbl-wrap">
           <table id="lhTable">
             <thead><tr>
-              <th onclick="sortTable('lhTable',0)" style="width:28px;">#</th>
-              <th onclick="sortTable('lhTable',1)">LH Trip</th>
-              <th onclick="sortTable('lhTable',2)" style="text-align:right;">Pedidos</th>
+              <th data-sort="0" style="width:28px;">#</th>
+              <th data-sort="1">LH Trip</th>
+              <th data-sort="2" style="text-align:right;">Pedidos</th>
             </tr></thead>
             <tbody>${lhRows}</tbody>
           </table>
@@ -1286,6 +1286,33 @@ function filterTable(id, query, col) {
     tr.style.display = (tr.cells[col]?.innerText.toLowerCase()||'').includes(q) ? '' : 'none';
   });
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+  // Botões de ação
+  document.getElementById('btnPrint').addEventListener('click', function() { window.print(); });
+  document.getElementById('btnShare').addEventListener('click', function() {
+    document.getElementById('shareOverlay').style.display = 'flex';
+  });
+  document.getElementById('btnCloseShare').addEventListener('click', function() {
+    document.getElementById('shareOverlay').style.display = 'none';
+  });
+  document.getElementById('shareOverlay').addEventListener('click', function(e) {
+    if (e.target === this) this.style.display = 'none';
+  });
+
+  // Busca de cluster
+  var searchEl = document.getElementById('searchCluster');
+  if (searchEl) searchEl.addEventListener('input', function() {
+    filterTable('clusterTable', this.value, 1);
+  });
+
+  // Ordenação das tabelas via header click
+  document.querySelectorAll('thead th[data-sort]').forEach(function(th) {
+    th.addEventListener('click', function() {
+      sortTable(th.closest('table').id, parseInt(th.dataset.sort));
+    });
+  });
+});
 </script>
 </body>
 </html>`;
