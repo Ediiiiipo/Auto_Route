@@ -956,7 +956,6 @@ function generateReport(ctList, templateData, importResult, calcResult, config) 
   const backlog     = templateData.backlogTotal || 0;
   const comerciais  = templateData.comerciaisRemovidos || [];
   const erros       = (importResult?.pedidosComErro || []);
-  const comByType   = comerciais.reduce((a, r) => { a[r.tipo] = (a[r.tipo]||0)+1; return a; }, {});
 
   const typeColor = { MOTO: '#EE4D2D', PASSEIO: '#2563EB', FIORINO: '#D97706' };
   const typeBg    = { MOTO: '#FFF1EE', PASSEIO: '#EFF6FF', FIORINO: '#FFFBEB' };
@@ -964,355 +963,242 @@ function generateReport(ctList, templateData, importResult, calcResult, config) 
 
   const clusterRows = activeCTs.map((ct, i) => `
     <tr>
-      <td>${i + 1}</td>
+      <td style="color:#a1a1aa;">${i + 1}</td>
       <td style="font-weight:600;">${ct.cluster}</td>
-      <td><span style="background:${typeBg[ct.type]||'#f5f5f5'};color:${typeColor[ct.type]||'#333'};padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700;">${typeLabel[ct.type]||ct.type}</span></td>
+      <td><span style="background:${typeBg[ct.type]||'#f5f5f5'};color:${typeColor[ct.type]||'#333'};padding:1px 8px;border-radius:20px;font-size:10px;font-weight:700;">${typeLabel[ct.type]||ct.type}</span></td>
       <td class="num">${ct.ids.length.toLocaleString('pt-BR')}</td>
       <td class="num">${ct.rotas}</td>
       <td class="num">${ct.spr}</td>
-      <td style="font-size:11px;color:#71717a;font-family:monospace;">${ct.ctId || '—'}</td>
+      <td style="font-size:10px;color:#a1a1aa;font-family:monospace;">${ct.ctId || '—'}</td>
     </tr>`).join('');
-
-  const baixoRows = baixoADO.length
-    ? baixoADO.map(ct => `
-    <tr>
-      <td style="font-weight:600;">${ct.cluster}</td>
-      <td class="num">${ct.ids.length}</td>
-    </tr>`).join('')
-    : `<tr><td colspan="2" style="text-align:center;color:#a1a1aa;padding:12px 0;font-size:11px;">Nenhum cluster com Baixo ADO</td></tr>`;
-
-  const lhRows = lhTrips.length
-    ? lhTrips.map(([trip, count], i) => `
-    <tr>
-      <td style="color:#a1a1aa;font-size:11px;">${i + 1}</td>
-      <td style="font-family:monospace;font-size:12px;font-weight:600;">${trip}</td>
-      <td class="num">${count.toLocaleString('pt-BR')}</td>
-    </tr>`).join('')
-    : `<tr><td colspan="3" style="text-align:center;color:#a1a1aa;padding:12px 0;font-size:11px;">Nenhuma LH identificada</td></tr>`;
-
-  const comRows = comerciais.length
-    ? Object.entries(comByType).map(([tipo, count]) => `
-    <tr>
-      <td style="font-weight:600;">${tipo}</td>
-      <td class="num">${count}</td>
-    </tr>`).join('')
-    : `<tr><td colspan="2" style="text-align:center;color:#a1a1aa;padding:12px 0;font-size:11px;">Nenhum pedido removido</td></tr>`;
 
   const erroRows = erros.slice(0, 200).map(r => `
     <tr>
-      <td style="font-family:monospace;font-size:11px;">${r.id}</td>
-      <td>${r.cluster}</td>
-      <td style="font-size:11px;color:#71717a;">${r.error}</td>
+      <td style="font-family:monospace;font-size:10px;">${r.id}</td>
+      <td style="font-size:11px;">${r.cluster}</td>
+      <td style="font-size:10px;color:#71717a;">${r.error}</td>
     </tr>`).join('');
-
-  const card = (icon, value, label, color='#18181b') =>
-    `<div class="card"><div class="card-icon">${icon}</div><div class="card-val" style="color:${color};">${typeof value === 'number' ? value.toLocaleString('pt-BR') : value}</div><div class="card-label">${label}</div></div>`;
 
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Relatório de Execução — ${station}</title>
+<title>Relatório — ${station}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F0F0F4;color:#18181B;font-size:13px;line-height:1.5;min-width:900px;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#EBEBEF;color:#18181B;font-size:12px;line-height:1.5;}
 
-/* ── HEADER ── */
-.top-bar{background:#fff;border-bottom:1px solid #E4E4EA;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
-.brand{display:flex;align-items:center;gap:12px;}
-.brand-logo{width:38px;height:38px;background:#EE4D2D;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 2px 8px rgba(238,77,45,0.25);}
-.brand-title{font-size:17px;font-weight:800;letter-spacing:-0.4px;}
-.brand-sub{font-size:11px;color:#71717a;}
-.top-actions{display:flex;gap:8px;}
-.btn-action{border:none;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:opacity .15s;}
+/* HEADER */
+.hdr{background:#fff;border-bottom:3px solid #EE4D2D;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.hdr-brand{display:flex;align-items:center;gap:9px;}
+.hdr-icon{width:30px;height:30px;background:#EE4D2D;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+.hdr-title{font-size:13px;font-weight:800;line-height:1.2;}
+.hdr-sub{font-size:10px;color:#71717a;}
+.hdr-btns{display:flex;gap:6px;}
+.btn{border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;transition:opacity .15s;}
 .btn-print{background:#EE4D2D;color:#fff;}
 .btn-share{background:#F0F0F4;color:#52525b;border:1px solid #D4D4DC;}
-.btn-action:hover{opacity:.85;}
+.btn:hover{opacity:.82;}
 
-/* ── META BAR ── */
-.meta-bar{background:#fff;border-bottom:1px solid #E4E4EA;padding:12px 28px;display:flex;gap:0;flex-wrap:wrap;}
-.meta-item{flex:1;min-width:120px;padding:4px 20px;border-right:1px solid #E4E4EA;}
-.meta-item:first-child{padding-left:0;}
-.meta-item:last-child{border-right:none;}
-.meta-lbl{font-size:9px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:1px;display:block;margin-bottom:2px;}
-.meta-val{font-size:14px;font-weight:700;color:#18181B;}
+/* META */
+.meta{background:#fff;border-bottom:1px solid #E4E4EA;padding:5px 18px;display:flex;flex-wrap:wrap;gap:0;}
+.m{padding:3px 14px 3px 0;margin-right:14px;border-right:1px solid #E4E4EA;}
+.m:last-child{border-right:none;}
+.m-lbl{font-size:8px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:.8px;}
+.m-val{font-size:12px;font-weight:700;}
 
-/* ── LAYOUT ── */
-.page{padding:20px 28px 40px;display:flex;flex-direction:column;gap:16px;}
+/* PAGE */
+.page{padding:12px 16px 24px;max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:10px;}
 
-/* ── CARDS ── */
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;}
-.card{background:#fff;border-radius:10px;padding:14px 10px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.06);}
-.card-icon{font-size:20px;margin-bottom:5px;}
-.card-val{font-size:22px;font-weight:800;line-height:1;}
-.card-label{font-size:9px;font-weight:600;color:#a1a1aa;text-transform:uppercase;letter-spacing:.5px;margin-top:4px;}
+/* CARDS */
+.cards{display:flex;flex-wrap:wrap;gap:7px;}
+.card{background:#fff;border-radius:8px;padding:9px 13px;flex:1;min-width:80px;box-shadow:0 1px 2px rgba(0,0,0,.06);}
+.card-val{font-size:19px;font-weight:800;line-height:1;}
+.card-lbl{font-size:8px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:.4px;margin-top:3px;}
 
-/* ── GRID ── */
-.main-grid{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start;}
-.right-col{display:flex;flex-direction:column;gap:16px;}
+/* PANEL */
+.panel{background:#fff;border-radius:9px;box-shadow:0 1px 2px rgba(0,0,0,.06);overflow:hidden;}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:9px 13px 7px;border-bottom:2px solid #EE4D2D;}
+.ph-title{font-size:11px;font-weight:700;display:flex;align-items:center;gap:6px;}
+.cnt{background:#F0F0F4;color:#52525b;font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;}
 
-/* ── PANELS ── */
-.panel{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06);overflow:hidden;}
-.panel-head{display:flex;align-items:center;justify-content:space-between;padding:14px 18px 12px;border-bottom:2px solid #EE4D2D;}
-.panel-head-left{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;}
-.panel-head-left span{font-size:15px;}
-.count-badge{background:#F0F0F4;color:#52525b;font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;}
-.panel-body{padding:14px 18px;}
+/* SEARCH */
+.sw{padding:7px 13px 0;}
+.si{width:100%;padding:5px 9px;border:1px solid #D4D4DC;border-radius:6px;font-size:11px;background:#F5F5F8;color:#18181B;outline:none;}
+.si:focus{border-color:#EE4D2D;}
 
-/* ── SEARCH ── */
-.search-wrap{padding:10px 18px 0;}
-.search-input{width:100%;padding:7px 12px;border:1px solid #D4D4DC;border-radius:8px;font-size:12px;background:#F5F5F8;color:#18181B;outline:none;}
-.search-input:focus{border-color:#EE4D2D;}
-
-/* ── TABLE ── */
-.tbl-wrap{overflow-x:auto;}
-table{width:100%;border-collapse:collapse;font-size:12px;}
-thead th{background:#F5F5F8;padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#71717a;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid #E4E4EA;white-space:nowrap;cursor:pointer;user-select:none;}
-thead th:hover{background:#EBEBEF;color:#18181B;}
-thead th.sort-asc::after{content:' ↑';}
-thead th.sort-desc::after{content:' ↓';}
-tbody tr:hover{background:#F5F5F8;}
-td{padding:8px 12px;border-bottom:1px solid #F0F0F4;vertical-align:middle;}
+/* TABLE */
+.tw{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:11px;}
+thead th{background:#F5F5F8;padding:5px 10px;text-align:left;font-size:9px;font-weight:700;color:#71717a;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid #E4E4EA;cursor:pointer;user-select:none;white-space:nowrap;}
+thead th:hover{background:#EBEBEF;}
+thead th.sa::after{content:' ↑';}
+thead th.sd::after{content:' ↓';}
+tbody tr:hover{background:#F9F9FB;}
+td{padding:5px 10px;border-bottom:1px solid #F2F2F5;vertical-align:middle;}
 tbody tr:last-child td{border-bottom:none;}
-.num{text-align:right;font-weight:600;font-variant-numeric:tabular-nums;}
+.num{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;}
 
-/* ── SHARE OVERLAY ── */
-#shareOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center;}
-#shareOverlay.show{display:flex;}
-.share-box{background:#fff;border-radius:16px;padding:28px;width:480px;max-width:94vw;box-shadow:0 20px 60px rgba(0,0,0,0.25);}
-.share-title{font-size:15px;font-weight:700;margin-bottom:6px;}
-.share-sub{font-size:12px;color:#71717a;margin-bottom:18px;}
-.share-steps{display:flex;flex-direction:column;gap:10px;margin-bottom:20px;}
-.share-step{display:flex;align-items:flex-start;gap:10px;background:#F5F5F8;border-radius:8px;padding:10px 14px;}
-.step-num{width:22px;height:22px;background:#EE4D2D;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px;}
-.step-text{font-size:12px;line-height:1.5;}
-.step-text strong{color:#18181B;}
-.share-close{width:100%;background:#F0F0F4;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:600;cursor:pointer;color:#52525b;}
-.share-close:hover{background:#E4E4EA;}
+/* SHARE OVERLAY */
+#shareOverlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;align-items:center;justify-content:center;}
+#shareOverlay.vis{display:flex;}
+.sbox{background:#fff;border-radius:12px;padding:22px;width:400px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.22);}
+.s-title{font-size:13px;font-weight:700;margin-bottom:3px;}
+.s-sub{font-size:10px;color:#71717a;margin-bottom:12px;}
+.s-steps{display:flex;flex-direction:column;gap:7px;margin-bottom:14px;}
+.s-step{display:flex;align-items:flex-start;gap:8px;background:#F5F5F8;border-radius:6px;padding:8px 10px;}
+.s-num{width:18px;height:18px;background:#EE4D2D;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0;margin-top:1px;}
+.s-txt{font-size:10px;line-height:1.4;}
+.s-close{width:100%;background:#F0F0F4;border:none;border-radius:6px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;color:#52525b;}
+.s-close:hover{background:#E4E4EA;}
 
-/* ── FOOTER ── */
-.rpt-footer{text-align:center;font-size:10px;color:#a1a1aa;padding-top:8px;}
+/* FOOTER */
+.footer{text-align:center;font-size:9px;color:#b0b0bb;padding-top:2px;}
 
-/* ── PRINT ── */
 @media print{
-  body{background:#fff;min-width:unset;}
-  .top-actions,.search-wrap,#shareOverlay{display:none!important;}
-  .main-grid{grid-template-columns:1fr 300px;}
+  body{background:#fff;}
+  .hdr-btns,.sw,#shareOverlay{display:none!important;}
   .panel{box-shadow:none;border:1px solid #e4e4ea;break-inside:avoid;}
-  .page{padding:12px;}
+  .page{padding:6px;}
 }
 </style>
 </head>
 <body>
 
-<!-- SHARE OVERLAY -->
-<div id="shareOverlay" style="display:none;">
-  <div class="share-box">
-    <div class="share-title">📤 Compartilhar Relatório</div>
-    <div class="share-sub">Siga os passos para salvar e enviar no grupo:</div>
-    <div class="share-steps">
-      <div class="share-step">
-        <div class="step-num">1</div>
-        <div class="step-text"><strong>Windows:</strong> Pressione <strong>Win + Shift + S</strong> e selecione a área do relatório. A imagem vai para a área de transferência e você pode colar direto no grupo.</div>
-      </div>
-      <div class="share-step">
-        <div class="step-num">2</div>
-        <div class="step-text"><strong>Chrome:</strong> Aperte <strong>F12</strong> → menu ⋮ → <em>Capturar captura de tela de página inteira</em> para salvar o relatório completo como PNG.</div>
-      </div>
-      <div class="share-step">
-        <div class="step-num">3</div>
-        <div class="step-text"><strong>Imprimir como PDF:</strong> Clique em <strong>🖨️ Imprimir</strong> e escolha "Salvar como PDF" para enviar em PDF.</div>
-      </div>
+<div id="shareOverlay">
+  <div class="sbox">
+    <div class="s-title">📤 Compartilhar Relatório</div>
+    <div class="s-sub">Siga os passos para salvar e enviar no grupo:</div>
+    <div class="s-steps">
+      <div class="s-step"><div class="s-num">1</div><div class="s-txt"><strong>Windows:</strong> Pressione <strong>Win + Shift + S</strong> e selecione a área do relatório.</div></div>
+      <div class="s-step"><div class="s-num">2</div><div class="s-txt"><strong>Chrome:</strong> F12 → menu ⋮ → <em>Capturar captura de tela de página inteira</em>.</div></div>
+      <div class="s-step"><div class="s-num">3</div><div class="s-txt"><strong>PDF:</strong> Clique em 🖨️ Imprimir → "Salvar como PDF".</div></div>
     </div>
-    <button class="share-close" id="btnCloseShare">Fechar</button>
+    <button class="s-close" id="btnCloseShare">Fechar</button>
   </div>
 </div>
 
-<!-- HEADER -->
-<div class="top-bar">
-  <div class="brand">
-    <div class="brand-logo">🚀</div>
+<div class="hdr">
+  <div class="hdr-brand">
+    <div class="hdr-icon">🚀</div>
     <div>
-      <div class="brand-title">Relatório de Execução</div>
-      <div class="brand-sub">SPX Auto Router — Routing Tower</div>
+      <div class="hdr-title">Relatório de Execução</div>
+      <div class="hdr-sub">SPX Auto Router · Routing Tower</div>
     </div>
   </div>
-  <div class="top-actions">
-    <button class="btn-action btn-share" id="btnShare">📤 Compartilhar</button>
-    <button class="btn-action btn-print" id="btnPrint">🖨️ Imprimir / PDF</button>
+  <div class="hdr-btns">
+    <button class="btn btn-share" id="btnShare">📤 Compartilhar</button>
+    <button class="btn btn-print" id="btnPrint">🖨️ Imprimir / PDF</button>
   </div>
 </div>
 
-<!-- META BAR -->
-<div class="meta-bar">
-  <div class="meta-item"><span class="meta-lbl">Estação</span><span class="meta-val">${station}</span></div>
-  <div class="meta-item"><span class="meta-lbl">Ciclo</span><span class="meta-val">${shiftLabel}</span></div>
-  <div class="meta-item"><span class="meta-lbl">Data de Expedição</span><span class="meta-val">${dateFormatted}</span></div>
-  <div class="meta-item"><span class="meta-lbl">CTs Calculadas</span><span class="meta-val">${calcResult?.successCount ?? importResult?.created ?? 0}</span></div>
-  <div class="meta-item"><span class="meta-lbl">Gerado em</span><span class="meta-val" style="font-size:12px;font-weight:600;">${now}</span></div>
+<div class="meta">
+  <div class="m"><div class="m-lbl">Estação</div><div class="m-val">${station}</div></div>
+  <div class="m"><div class="m-lbl">Ciclo</div><div class="m-val">${shiftLabel}</div></div>
+  <div class="m"><div class="m-lbl">Expedição</div><div class="m-val">${dateFormatted}</div></div>
+  <div class="m"><div class="m-lbl">CTs Calculadas</div><div class="m-val">${calcResult?.successCount ?? importResult?.created ?? 0}</div></div>
+  <div class="m"><div class="m-lbl">Gerado em</div><div class="m-val" style="font-size:11px;">${now}</div></div>
 </div>
 
 <div class="page">
 
-  <!-- CARDS -->
   <div class="cards">
-    ${card('📦', totalIDs, 'Pedidos Importados', '#EE4D2D')}
-    ${card('🗂️', importResult?.created ?? 0, 'CTs Criadas', '#2563EB')}
-    ${card('✅', calcResult?.successCount ?? 0, 'Calculados', '#16A34A')}
-    ${card('🛣️', totalRoutes, 'Rotas Totais', '#18181B')}
-    ${card('🚚', lhTrips.length, 'LHs', '#7C3AED')}
-    ${card('⏪', backlog, 'Backlog', '#D97706')}
-    ${card('🏢', comerciais.length, 'Comerciais Retirados', '#52525b')}
-    ${card('❌', erros.length, 'Erros Import.', erros.length > 0 ? '#DC2626' : '#a1a1aa')}
+    <div class="card"><div class="card-val" style="color:#EE4D2D;">${totalIDs.toLocaleString('pt-BR')}</div><div class="card-lbl">Importados</div></div>
+    <div class="card"><div class="card-val" style="color:#2563EB;">${(importResult?.created ?? 0)}</div><div class="card-lbl">CTs Criadas</div></div>
+    <div class="card"><div class="card-val" style="color:#16A34A;">${(calcResult?.successCount ?? 0)}</div><div class="card-lbl">Calculados</div></div>
+    <div class="card"><div class="card-val">${totalRoutes.toLocaleString('pt-BR')}</div><div class="card-lbl">Rotas Totais</div></div>
+    <div class="card"><div class="card-val" style="color:#7C3AED;">${lhTrips.length}</div><div class="card-lbl">LH Trips</div></div>
+    <div class="card"><div class="card-val" style="color:#D97706;">${backlog.toLocaleString('pt-BR')}</div><div class="card-lbl">Backlog</div></div>
+    <div class="card"><div class="card-val" style="color:#D97706;">${baixoADO.length}</div><div class="card-lbl">Baixo ADO</div></div>
+    <div class="card"><div class="card-val" style="color:#52525b;">${comerciais.length}</div><div class="card-lbl">Comerciais</div></div>
+    <div class="card"><div class="card-val" style="color:${erros.length > 0 ? '#DC2626' : '#a1a1aa'};">${erros.length}</div><div class="card-lbl">Erros</div></div>
   </div>
 
-  <!-- MAIN GRID -->
-  <div class="main-grid">
-
-    <!-- LEFT: Clusters -->
-    <div style="display:flex;flex-direction:column;gap:16px;">
-      <div class="panel">
-        <div class="panel-head">
-          <div class="panel-head-left"><span>📋</span> Clusters Roteirizados <span class="count-badge">${activeCTs.length}</span></div>
-        </div>
-        <div class="search-wrap">
-          <input class="search-input" id="searchCluster" placeholder="Buscar cluster...">
-        </div>
-        <div class="tbl-wrap">
-          <table id="clusterTable">
-            <thead><tr>
-              <th data-sort="0" style="width:36px;">#</th>
-              <th data-sort="1">Cluster</th>
-              <th data-sort="2">Tipo</th>
-              <th data-sort="3" style="text-align:right;">Pedidos</th>
-              <th data-sort="4" style="text-align:right;">Rotas</th>
-              <th data-sort="5" style="text-align:right;">SPR</th>
-              <th>CT ID</th>
-            </tr></thead>
-            <tbody>${clusterRows}</tbody>
-          </table>
-        </div>
-      </div>
-
-      ${erros.length > 0 ? `
-      <div class="panel">
-        <div class="panel-head" style="border-color:#DC2626;">
-          <div class="panel-head-left"><span>❌</span> Erros de Importação <span class="count-badge">${erros.length}</span></div>
-        </div>
-        <div class="tbl-wrap">
-          <table>
-            <thead><tr><th>Shipment ID</th><th>Cluster</th><th>Erro</th></tr></thead>
-            <tbody>${erroRows}</tbody>
-          </table>
-        </div>
-      </div>` : ''}
+  <div class="panel">
+    <div class="ph">
+      <div class="ph-title">📋 Clusters Roteirizados <span class="cnt">${activeCTs.length}</span></div>
     </div>
+    <div class="sw"><input class="si" id="searchCluster" placeholder="Buscar cluster..."></div>
+    <div class="tw">
+      <table id="clusterTable">
+        <thead><tr>
+          <th data-sort="0" style="width:28px;">#</th>
+          <th data-sort="1">Cluster</th>
+          <th data-sort="2">Tipo</th>
+          <th data-sort="3" style="text-align:right;">Pedidos</th>
+          <th data-sort="4" style="text-align:right;">Rotas</th>
+          <th data-sort="5" style="text-align:right;">SPR</th>
+          <th>CT ID</th>
+        </tr></thead>
+        <tbody>${clusterRows}</tbody>
+      </table>
+    </div>
+  </div>
 
-    <!-- RIGHT SIDEBAR -->
-    <div class="right-col">
+  ${erros.length > 0 ? `
+  <div class="panel">
+    <div class="ph" style="border-color:#DC2626;">
+      <div class="ph-title">❌ Erros de Importação <span class="cnt">${erros.length}</span></div>
+    </div>
+    <div class="tw">
+      <table>
+        <thead><tr><th>Shipment ID</th><th>Cluster</th><th>Erro</th></tr></thead>
+        <tbody>${erroRows}</tbody>
+      </table>
+    </div>
+  </div>` : ''}
 
-      <!-- LH Trips -->
-      <div class="panel">
-        <div class="panel-head">
-          <div class="panel-head-left"><span>🚚</span> LH Trips <span class="count-badge">${lhTrips.length}</span></div>
-        </div>
-        <div class="tbl-wrap">
-          <table id="lhTable">
-            <thead><tr>
-              <th data-sort="0" style="width:28px;">#</th>
-              <th data-sort="1">LH Trip</th>
-              <th data-sort="2" style="text-align:right;">Pedidos</th>
-            </tr></thead>
-            <tbody>${lhRows}</tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Baixo ADO -->
-      <div class="panel">
-        <div class="panel-head" style="border-color:#D97706;">
-          <div class="panel-head-left"><span>⚠️</span> Baixo ADO <span class="count-badge">${baixoADO.length}</span></div>
-        </div>
-        <div class="tbl-wrap">
-          <table>
-            <thead><tr><th>Cluster</th><th style="text-align:right;">IDs</th></tr></thead>
-            <tbody>${baixoRows}</tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Comerciais -->
-      <div class="panel">
-        <div class="panel-head" style="border-color:#71717a;">
-          <div class="panel-head-left"><span>🏢</span> Comerciais Removidos <span class="count-badge">${comerciais.length}</span></div>
-        </div>
-        <div class="tbl-wrap">
-          <table>
-            <thead><tr><th>Tipo</th><th style="text-align:right;">Qtd</th></tr></thead>
-            <tbody>${comRows}</tbody>
-          </table>
-        </div>
-      </div>
-
-    </div><!-- /right-col -->
-  </div><!-- /main-grid -->
-
-  <div class="rpt-footer">Relatório gerado automaticamente pelo SPX Auto Router &nbsp;·&nbsp; ${now}</div>
+  <div class="footer">Gerado automaticamente pelo SPX Auto Router · ${now}</div>
 </div>
 
 <script>
-function sortTable(id, col) {
-  const tbl = document.getElementById(id);
-  const tbody = tbl.querySelector('tbody');
-  const ths = tbl.querySelectorAll('thead th');
-  const rows = Array.from(tbody.querySelectorAll('tr'));
-  const asc = ths[col].classList.contains('sort-asc');
-  ths.forEach(th => th.classList.remove('sort-asc','sort-desc'));
-  ths[col].classList.add(asc ? 'sort-desc' : 'sort-asc');
-  rows.sort((a, b) => {
-    const va = a.cells[col]?.innerText.trim() || '';
-    const vb = b.cells[col]?.innerText.trim() || '';
-    const na = parseFloat(va.replace(/\./g,'').replace(',','.'));
-    const nb = parseFloat(vb.replace(/\./g,'').replace(',','.'));
-    if (!isNaN(na) && !isNaN(nb)) return asc ? nb - na : na - nb;
-    return asc ? vb.localeCompare(va,'pt-BR') : va.localeCompare(vb,'pt-BR');
-  });
-  rows.forEach(r => tbody.appendChild(r));
-}
-function filterTable(id, query, col) {
-  const q = query.toLowerCase();
-  document.getElementById(id).querySelectorAll('tbody tr').forEach(tr => {
-    tr.style.display = (tr.cells[col]?.innerText.toLowerCase()||'').includes(q) ? '' : 'none';
-  });
-}
-
-document.addEventListener('DOMContentLoaded', function() {
-  // Botões de ação
+(function() {
   document.getElementById('btnPrint').addEventListener('click', function() { window.print(); });
   document.getElementById('btnShare').addEventListener('click', function() {
-    document.getElementById('shareOverlay').style.display = 'flex';
+    document.getElementById('shareOverlay').classList.add('vis');
   });
   document.getElementById('btnCloseShare').addEventListener('click', function() {
-    document.getElementById('shareOverlay').style.display = 'none';
+    document.getElementById('shareOverlay').classList.remove('vis');
   });
   document.getElementById('shareOverlay').addEventListener('click', function(e) {
-    if (e.target === this) this.style.display = 'none';
+    if (e.target === this) this.classList.remove('vis');
   });
 
-  // Busca de cluster
-  var searchEl = document.getElementById('searchCluster');
-  if (searchEl) searchEl.addEventListener('input', function() {
-    filterTable('clusterTable', this.value, 1);
-  });
+  function sortTable(tableId, col) {
+    var tbl = document.getElementById(tableId);
+    if (!tbl) return;
+    var tbody = tbl.querySelector('tbody');
+    var ths = tbl.querySelectorAll('thead th');
+    var rows = Array.from(tbody.querySelectorAll('tr'));
+    var asc = ths[col].classList.contains('sa');
+    ths.forEach(function(th) { th.classList.remove('sa','sd'); });
+    ths[col].classList.add(asc ? 'sd' : 'sa');
+    rows.sort(function(a, b) {
+      var va = (a.cells[col] ? a.cells[col].innerText.trim() : '');
+      var vb = (b.cells[col] ? b.cells[col].innerText.trim() : '');
+      var na = parseFloat(va.replace(/\./g,'').replace(',','.'));
+      var nb = parseFloat(vb.replace(/\./g,'').replace(',','.'));
+      if (!isNaN(na) && !isNaN(nb)) return asc ? nb - na : na - nb;
+      return asc ? vb.localeCompare(va,'pt-BR') : va.localeCompare(vb,'pt-BR');
+    });
+    rows.forEach(function(r) { tbody.appendChild(r); });
+  }
 
-  // Ordenação das tabelas via header click
-  document.querySelectorAll('thead th[data-sort]').forEach(function(th) {
-    th.addEventListener('click', function() {
-      sortTable(th.closest('table').id, parseInt(th.dataset.sort));
+  var si = document.getElementById('searchCluster');
+  if (si) si.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.getElementById('clusterTable').querySelectorAll('tbody tr').forEach(function(tr) {
+      tr.style.display = (tr.cells[1] ? tr.cells[1].innerText.toLowerCase() : '').includes(q) ? '' : 'none';
     });
   });
-});
+
+  document.querySelectorAll('thead th[data-sort]').forEach(function(th) {
+    th.addEventListener('click', function() {
+      var tbl = th.closest('table');
+      if (tbl && tbl.id) sortTable(tbl.id, parseInt(th.dataset.sort));
+    });
+  });
+})();
 </script>
 </body>
 </html>`;
