@@ -957,19 +957,84 @@ function generateReport(ctList, templateData, importResult, calcResult, config) 
   const comerciais  = templateData.comerciaisRemovidos || [];
   const erros       = (importResult?.pedidosComErro || []);
 
-  const typeColor = { MOTO: '#EE4D2D', PASSEIO: '#2563EB', FIORINO: '#D97706' };
+  const typeColor = { MOTO: '#EE4D2D', PASSEIO: '#3B82F6', FIORINO: '#F59E0B' };
   const typeBg    = { MOTO: '#FFF1EE', PASSEIO: '#EFF6FF', FIORINO: '#FFFBEB' };
   const typeLabel = { MOTO: 'Moto', PASSEIO: 'Passeio', FIORINO: 'Volumoso' };
 
+  // Top clusters by orders (top 10, sorted)
+  const topClusters = [...activeCTs].sort((a, b) => b.ids.length - a.ids.length).slice(0, 10);
+  const maxOrders = topClusters[0]?.ids.length || 1;
+
+  // Donut: routes by vehicle type
+  const motoRoutes    = activeCTs.filter(ct => ct.type === 'MOTO').reduce((s, ct) => s + ct.rotas, 0);
+  const passeioRoutes = activeCTs.filter(ct => ct.type === 'PASSEIO').reduce((s, ct) => s + ct.rotas, 0);
+  const fiorRoutes    = activeCTs.filter(ct => ct.type === 'FIORINO').reduce((s, ct) => s + ct.rotas, 0);
+  const donutSegs = [
+    { value: motoRoutes,    color: '#EE4D2D', label: 'Moto' },
+    { value: passeioRoutes, color: '#3B82F6', label: 'Passeio' },
+    { value: fiorRoutes,    color: '#F59E0B', label: 'Volumoso' },
+  ].filter(d => d.value > 0);
+
+  // SVG donut chart using stroke-dasharray
+  function donutSVG(segs, size = 116) {
+    const total = segs.reduce((s, d) => s + d.value, 0);
+    if (!total) return `<svg width="${size}" height="${size}"><text x="${size/2}" y="${size/2+5}" text-anchor="middle" font-size="11" fill="#a1a1aa">—</text></svg>`;
+    const cx = size / 2, cy = size / 2, r = 40;
+    const circ = 2 * Math.PI * r;
+    let offset = 0;
+    const slices = segs.map(d => {
+      const dash = (d.value / total) * circ;
+      const s = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${d.color}" stroke-width="18"
+        stroke-dasharray="${dash.toFixed(2)} ${(circ - dash).toFixed(2)}"
+        stroke-dashoffset="${(-offset).toFixed(2)}"
+        transform="rotate(-90 ${cx} ${cy})"/>`;
+      offset += dash;
+      return s;
+    }).join('');
+    return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#EBEBEF" stroke-width="18"/>
+      ${slices}
+      <text x="${cx}" y="${cy - 5}" text-anchor="middle" font-size="17" font-weight="800" fill="#18181B">${total}</text>
+      <text x="${cx}" y="${cy + 11}" text-anchor="middle" font-size="8" font-weight="700" fill="#a1a1aa" letter-spacing="0.5">ROTAS</text>
+    </svg>`;
+  }
+
+  // Horizontal bars (top clusters)
+  const hBarsHTML = topClusters.map((ct, i) => {
+    const pct = Math.round((ct.ids.length / maxOrders) * 100);
+    const color = typeColor[ct.type] || '#6366F1';
+    return `<div style="display:flex;align-items:center;gap:7px;margin-bottom:7px;">
+      <span style="width:13px;font-size:9px;color:#a1a1aa;font-weight:700;text-align:right;flex-shrink:0;">${i+1}.</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:10px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;">${ct.cluster}</div>
+        <div style="height:7px;background:#F0F0F4;border-radius:4px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:${color};border-radius:4px;"></div>
+        </div>
+      </div>
+      <span style="font-size:11px;font-weight:700;color:#52525b;min-width:36px;text-align:right;flex-shrink:0;">${ct.ids.length.toLocaleString('pt-BR')}</span>
+    </div>`;
+  }).join('');
+
+  // Donut legend
+  const legendHTML = donutSegs.map(d => `
+    <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px;">
+      <div style="width:10px;height:10px;border-radius:3px;background:${d.color};flex-shrink:0;"></div>
+      <div>
+        <div style="font-size:10px;font-weight:700;">${d.label}</div>
+        <div style="font-size:9px;color:#a1a1aa;">${d.value} rotas</div>
+      </div>
+    </div>`).join('');
+
+  // Cluster table rows
   const clusterRows = activeCTs.map((ct, i) => `
     <tr>
-      <td style="color:#a1a1aa;">${i + 1}</td>
-      <td style="font-weight:600;">${ct.cluster}</td>
-      <td><span style="background:${typeBg[ct.type]||'#f5f5f5'};color:${typeColor[ct.type]||'#333'};padding:1px 8px;border-radius:20px;font-size:10px;font-weight:700;">${typeLabel[ct.type]||ct.type}</span></td>
+      <td style="color:#a1a1aa;font-size:10px;">${i + 1}</td>
+      <td style="font-weight:600;font-size:11px;">${ct.cluster}</td>
+      <td><span style="background:${typeBg[ct.type]||'#f5f5f5'};color:${typeColor[ct.type]||'#333'};padding:1px 7px;border-radius:20px;font-size:9px;font-weight:700;">${typeLabel[ct.type]||ct.type}</span></td>
       <td class="num">${ct.ids.length.toLocaleString('pt-BR')}</td>
       <td class="num">${ct.rotas}</td>
       <td class="num">${ct.spr}</td>
-      <td style="font-size:10px;color:#a1a1aa;font-family:monospace;">${ct.ctId || '—'}</td>
+      <td style="font-size:9px;color:#a1a1aa;font-family:monospace;">${ct.ctId || '—'}</td>
     </tr>`).join('');
 
   const erroRows = erros.slice(0, 200).map(r => `
@@ -986,44 +1051,55 @@ function generateReport(ctList, templateData, importResult, calcResult, config) 
 <title>Relatório — ${station}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#EBEBEF;color:#18181B;font-size:12px;line-height:1.5;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#EAEAEF;color:#18181B;font-size:12px;line-height:1.5;}
 
-/* HEADER */
-.hdr{background:#fff;border-bottom:3px solid #EE4D2D;padding:10px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
-.hdr-brand{display:flex;align-items:center;gap:9px;}
-.hdr-icon{width:30px;height:30px;background:#EE4D2D;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+/* HDR */
+.hdr{background:#fff;border-bottom:3px solid #EE4D2D;padding:9px 18px;display:flex;align-items:center;gap:10px;}
+.hdr-brand{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.hdr-icon{width:28px;height:28px;background:#EE4D2D;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;}
 .hdr-title{font-size:13px;font-weight:800;line-height:1.2;}
-.hdr-sub{font-size:10px;color:#71717a;}
-.hdr-btns{display:flex;gap:6px;}
-.btn{border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer;transition:opacity .15s;}
+.hdr-sub{font-size:9px;color:#71717a;}
+.hdr-meta{display:flex;align-items:center;flex:1;padding:0 16px;}
+.hm{padding:0 12px;border-right:1px solid #E8E8EE;}
+.hm:last-child{border-right:none;}
+.hm-lbl{font-size:8px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:.6px;display:block;}
+.hm-val{font-size:11px;font-weight:700;}
+.hdr-btns{display:flex;gap:5px;flex-shrink:0;}
+.btn{border:none;border-radius:6px;padding:5px 11px;font-size:10px;font-weight:700;cursor:pointer;transition:opacity .15s;}
 .btn-print{background:#EE4D2D;color:#fff;}
 .btn-share{background:#F0F0F4;color:#52525b;border:1px solid #D4D4DC;}
 .btn:hover{opacity:.82;}
 
-/* META */
-.meta{background:#fff;border-bottom:1px solid #E4E4EA;padding:5px 18px;display:flex;flex-wrap:wrap;gap:0;}
-.m{padding:3px 14px 3px 0;margin-right:14px;border-right:1px solid #E4E4EA;}
-.m:last-child{border-right:none;}
-.m-lbl{font-size:8px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:.8px;}
-.m-val{font-size:12px;font-weight:700;}
-
 /* PAGE */
-.page{padding:12px 16px 24px;max-width:880px;margin:0 auto;display:flex;flex-direction:column;gap:10px;}
+.page{padding:12px 16px 20px;max-width:1020px;margin:0 auto;display:flex;flex-direction:column;gap:10px;}
 
-/* CARDS */
-.cards{display:flex;flex-wrap:wrap;gap:7px;}
-.card{background:#fff;border-radius:8px;padding:9px 13px;flex:1;min-width:80px;box-shadow:0 1px 2px rgba(0,0,0,.06);}
-.card-val{font-size:19px;font-weight:800;line-height:1;}
-.card-lbl{font-size:8px;font-weight:700;color:#a1a1aa;text-transform:uppercase;letter-spacing:.4px;margin-top:3px;}
+/* GRID ROWS */
+.top-row{display:grid;grid-template-columns:1fr 1fr 200px;gap:10px;align-items:start;}
+.bot-row{display:grid;grid-template-columns:1fr 200px;gap:10px;align-items:start;}
 
 /* PANEL */
-.panel{background:#fff;border-radius:9px;box-shadow:0 1px 2px rgba(0,0,0,.06);overflow:hidden;}
-.ph{display:flex;align-items:center;justify-content:space-between;padding:9px 13px 7px;border-bottom:2px solid #EE4D2D;}
-.ph-title{font-size:11px;font-weight:700;display:flex;align-items:center;gap:6px;}
-.cnt{background:#F0F0F4;color:#52525b;font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;}
+.panel{background:#fff;border-radius:9px;box-shadow:0 1px 3px rgba(0,0,0,.07);overflow:hidden;}
+.ph{padding:9px 13px 8px;border-bottom:1px solid #F0F0F4;display:flex;align-items:center;justify-content:space-between;}
+.ph-left{display:flex;align-items:center;gap:6px;}
+.ph-title{font-size:11px;font-weight:700;}
+.ph-sub{font-size:9px;color:#a1a1aa;}
+.cnt{background:#F2F2F5;color:#52525b;font-size:9px;font-weight:700;padding:1px 7px;border-radius:20px;}
+.pb{padding:12px 13px;}
+
+/* SUMMARY STATS (right panel) */
+.stat-row{display:flex;align-items:baseline;gap:10px;padding:8px 0;border-bottom:1px solid #F5F5F8;}
+.stat-row:last-child{border-bottom:none;}
+.stat-val{font-size:24px;font-weight:800;line-height:1;flex-shrink:0;}
+.stat-lbl{font-size:9px;font-weight:600;color:#a1a1aa;text-transform:uppercase;letter-spacing:.4px;line-height:1.3;}
+
+/* INDICATORS (secondary panel) */
+.ind-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #F5F5F8;}
+.ind-row:last-child{border-bottom:none;}
+.ind-lbl{font-size:10px;color:#52525b;}
+.ind-val{font-size:15px;font-weight:800;}
 
 /* SEARCH */
-.sw{padding:7px 13px 0;}
+.sw{padding:7px 13px;}
 .si{width:100%;padding:5px 9px;border:1px solid #D4D4DC;border-radius:6px;font-size:11px;background:#F5F5F8;color:#18181B;outline:none;}
 .si:focus{border-color:#EE4D2D;}
 
@@ -1052,14 +1128,15 @@ tbody tr:last-child td{border-bottom:none;}
 .s-close{width:100%;background:#F0F0F4;border:none;border-radius:6px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;color:#52525b;}
 .s-close:hover{background:#E4E4EA;}
 
-/* FOOTER */
-.footer{text-align:center;font-size:9px;color:#b0b0bb;padding-top:2px;}
+.footer{text-align:center;font-size:9px;color:#b0b0bb;}
 
 @media print{
   body{background:#fff;}
   .hdr-btns,.sw,#shareOverlay{display:none!important;}
   .panel{box-shadow:none;border:1px solid #e4e4ea;break-inside:avoid;}
   .page{padding:6px;}
+  .top-row{grid-template-columns:1fr 1fr 180px;}
+  .bot-row{grid-template-columns:1fr 180px;}
 }
 </style>
 </head>
@@ -1070,9 +1147,9 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="s-title">📤 Compartilhar Relatório</div>
     <div class="s-sub">Siga os passos para salvar e enviar no grupo:</div>
     <div class="s-steps">
-      <div class="s-step"><div class="s-num">1</div><div class="s-txt"><strong>Windows:</strong> Pressione <strong>Win + Shift + S</strong> e selecione a área do relatório.</div></div>
-      <div class="s-step"><div class="s-num">2</div><div class="s-txt"><strong>Chrome:</strong> F12 → menu ⋮ → <em>Capturar captura de tela de página inteira</em>.</div></div>
-      <div class="s-step"><div class="s-num">3</div><div class="s-txt"><strong>PDF:</strong> Clique em 🖨️ Imprimir → "Salvar como PDF".</div></div>
+      <div class="s-step"><div class="s-num">1</div><div class="s-txt"><strong>Windows:</strong> Win + Shift + S → selecione a área.</div></div>
+      <div class="s-step"><div class="s-num">2</div><div class="s-txt"><strong>Chrome:</strong> F12 → menu ⋮ → Capturar página inteira.</div></div>
+      <div class="s-step"><div class="s-num">3</div><div class="s-txt"><strong>PDF:</strong> 🖨️ Imprimir → "Salvar como PDF".</div></div>
     </div>
     <button class="s-close" id="btnCloseShare">Fechar</button>
   </div>
@@ -1083,62 +1160,114 @@ tbody tr:last-child td{border-bottom:none;}
     <div class="hdr-icon">🚀</div>
     <div>
       <div class="hdr-title">Relatório de Execução</div>
-      <div class="hdr-sub">SPX Auto Router · Routing Tower</div>
+      <div class="hdr-sub">SPX Auto Router</div>
     </div>
+  </div>
+  <div class="hdr-meta">
+    <div class="hm"><span class="hm-lbl">Estação</span><span class="hm-val">${station}</span></div>
+    <div class="hm"><span class="hm-lbl">Ciclo</span><span class="hm-val">${shiftLabel}</span></div>
+    <div class="hm"><span class="hm-lbl">Expedição</span><span class="hm-val">${dateFormatted}</span></div>
+    <div class="hm"><span class="hm-lbl">Gerado em</span><span class="hm-val">${now}</span></div>
   </div>
   <div class="hdr-btns">
     <button class="btn btn-share" id="btnShare">📤 Compartilhar</button>
-    <button class="btn btn-print" id="btnPrint">🖨️ Imprimir / PDF</button>
+    <button class="btn btn-print" id="btnPrint">🖨️ Imprimir</button>
   </div>
-</div>
-
-<div class="meta">
-  <div class="m"><div class="m-lbl">Estação</div><div class="m-val">${station}</div></div>
-  <div class="m"><div class="m-lbl">Ciclo</div><div class="m-val">${shiftLabel}</div></div>
-  <div class="m"><div class="m-lbl">Expedição</div><div class="m-val">${dateFormatted}</div></div>
-  <div class="m"><div class="m-lbl">CTs Calculadas</div><div class="m-val">${calcResult?.successCount ?? importResult?.created ?? 0}</div></div>
-  <div class="m"><div class="m-lbl">Gerado em</div><div class="m-val" style="font-size:11px;">${now}</div></div>
 </div>
 
 <div class="page">
 
-  <div class="cards">
-    <div class="card"><div class="card-val" style="color:#EE4D2D;">${totalIDs.toLocaleString('pt-BR')}</div><div class="card-lbl">Importados</div></div>
-    <div class="card"><div class="card-val" style="color:#2563EB;">${(importResult?.created ?? 0)}</div><div class="card-lbl">CTs Criadas</div></div>
-    <div class="card"><div class="card-val" style="color:#16A34A;">${(calcResult?.successCount ?? 0)}</div><div class="card-lbl">Calculados</div></div>
-    <div class="card"><div class="card-val">${totalRoutes.toLocaleString('pt-BR')}</div><div class="card-lbl">Rotas Totais</div></div>
-    <div class="card"><div class="card-val" style="color:#7C3AED;">${lhTrips.length}</div><div class="card-lbl">LH Trips</div></div>
-    <div class="card"><div class="card-val" style="color:#D97706;">${backlog.toLocaleString('pt-BR')}</div><div class="card-lbl">Backlog</div></div>
-    <div class="card"><div class="card-val" style="color:#D97706;">${baixoADO.length}</div><div class="card-lbl">Baixo ADO</div></div>
-    <div class="card"><div class="card-val" style="color:#52525b;">${comerciais.length}</div><div class="card-lbl">Comerciais</div></div>
-    <div class="card"><div class="card-val" style="color:${erros.length > 0 ? '#DC2626' : '#a1a1aa'};">${erros.length}</div><div class="card-lbl">Erros</div></div>
-  </div>
+  <!-- TOP ROW: bars | donut | summary -->
+  <div class="top-row">
 
-  <div class="panel">
-    <div class="ph">
-      <div class="ph-title">📋 Clusters Roteirizados <span class="cnt">${activeCTs.length}</span></div>
+    <!-- Top Clusters (horizontal bars) -->
+    <div class="panel">
+      <div class="ph">
+        <div class="ph-left">
+          <span class="ph-title">Top Clusters</span>
+          <span class="ph-sub">por pedidos</span>
+        </div>
+        <span class="cnt">${topClusters.length}</span>
+      </div>
+      <div class="pb">
+        ${hBarsHTML || '<div style="color:#a1a1aa;font-size:11px;text-align:center;padding:10px 0;">Nenhum cluster</div>'}
+      </div>
     </div>
-    <div class="sw"><input class="si" id="searchCluster" placeholder="Buscar cluster..."></div>
-    <div class="tw">
-      <table id="clusterTable">
-        <thead><tr>
-          <th data-sort="0" style="width:28px;">#</th>
-          <th data-sort="1">Cluster</th>
-          <th data-sort="2">Tipo</th>
-          <th data-sort="3" style="text-align:right;">Pedidos</th>
-          <th data-sort="4" style="text-align:right;">Rotas</th>
-          <th data-sort="5" style="text-align:right;">SPR</th>
-          <th>CT ID</th>
-        </tr></thead>
-        <tbody>${clusterRows}</tbody>
-      </table>
+
+    <!-- Distribuição por Tipo (donut) -->
+    <div class="panel">
+      <div class="ph">
+        <div class="ph-left">
+          <span class="ph-title">Distribuição por Tipo</span>
+        </div>
+        <span class="ph-sub">${totalRoutes} rotas</span>
+      </div>
+      <div class="pb" style="display:flex;align-items:center;gap:14px;">
+        ${donutSVG(donutSegs)}
+        <div style="flex:1;">
+          ${legendHTML || '<span style="font-size:10px;color:#a1a1aa;">—</span>'}
+        </div>
+      </div>
     </div>
-  </div>
+
+    <!-- Summary Statistics -->
+    <div class="panel">
+      <div class="ph"><span class="ph-title">Resumo</span></div>
+      <div class="pb">
+        <div class="stat-row"><span class="stat-val" style="color:#EE4D2D;">${totalIDs.toLocaleString('pt-BR')}</span><span class="stat-lbl">Pedidos Importados</span></div>
+        <div class="stat-row"><span class="stat-val" style="color:#3B82F6;">${importResult?.created ?? 0}</span><span class="stat-lbl">CTs Criadas</span></div>
+        <div class="stat-row"><span class="stat-val" style="color:#16A34A;">${calcResult?.successCount ?? 0}</span><span class="stat-lbl">Calculados</span></div>
+        <div class="stat-row"><span class="stat-val">${totalRoutes.toLocaleString('pt-BR')}</span><span class="stat-lbl">Rotas Totais</span></div>
+      </div>
+    </div>
+
+  </div><!-- /top-row -->
+
+  <!-- BOTTOM ROW: table | indicators -->
+  <div class="bot-row">
+
+    <!-- Clusters table -->
+    <div class="panel">
+      <div class="ph">
+        <span class="ph-title">Clusters Roteirizados</span>
+        <span class="cnt">${activeCTs.length}</span>
+      </div>
+      <div class="sw"><input class="si" id="searchCluster" placeholder="Buscar cluster..."></div>
+      <div class="tw">
+        <table id="clusterTable">
+          <thead><tr>
+            <th data-sort="0" style="width:26px;">#</th>
+            <th data-sort="1">Cluster</th>
+            <th data-sort="2">Tipo</th>
+            <th data-sort="3" style="text-align:right;">Pedidos</th>
+            <th data-sort="4" style="text-align:right;">Rotas</th>
+            <th data-sort="5" style="text-align:right;">SPR</th>
+            <th>CT ID</th>
+          </tr></thead>
+          <tbody>${clusterRows}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Outros Indicadores -->
+    <div class="panel">
+      <div class="ph"><span class="ph-title">Outros Indicadores</span></div>
+      <div class="pb">
+        <div class="ind-row"><span class="ind-lbl">🚚 LH Trips</span><span class="ind-val" style="color:#7C3AED;">${lhTrips.length}</span></div>
+        <div class="ind-row"><span class="ind-lbl">⏪ Backlog</span><span class="ind-val" style="color:#D97706;">${backlog.toLocaleString('pt-BR')}</span></div>
+        <div class="ind-row"><span class="ind-lbl">⚠️ Baixo ADO</span><span class="ind-val" style="color:#D97706;">${baixoADO.length}</span></div>
+        <div class="ind-row"><span class="ind-lbl">🏢 Comerciais</span><span class="ind-val" style="color:#52525b;">${comerciais.length}</span></div>
+        <div class="ind-row"><span class="ind-lbl">❌ Erros Import.</span><span class="ind-val" style="color:${erros.length > 0 ? '#DC2626' : '#a1a1aa'};">${erros.length}</span></div>
+      </div>
+    </div>
+
+  </div><!-- /bot-row -->
 
   ${erros.length > 0 ? `
   <div class="panel">
-    <div class="ph" style="border-color:#DC2626;">
-      <div class="ph-title">❌ Erros de Importação <span class="cnt">${erros.length}</span></div>
+    <div class="ph" style="border-bottom:2px solid #DC2626;">
+      <span class="ph-title">❌ Erros de Importação</span>
+      <span class="cnt" style="background:#FEE2E2;color:#DC2626;">${erros.length}</span>
     </div>
     <div class="tw">
       <table>
